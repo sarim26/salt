@@ -7,9 +7,9 @@ interface PostCardProps {
   schoolName: string;
   showRec?: boolean;
   compact?: boolean;
-  onVote: (id: number, d: number) => void;
-  onMeetUp: (id: number) => void;
-  onOpenChat: (id: number) => void;
+  onVote: (id: string | number, d: number) => void;
+  onMeetUp: (id: string | number) => void;
+  onOpenChat: (id: string | number) => void;
 }
 
 export function PostCard({

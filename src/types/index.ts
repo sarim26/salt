@@ -1,3 +1,5 @@
+export type AppMode = 'demo' | 'live' | null;
+
 export type Screen =
   | 'login'
   | 'feed'
@@ -9,7 +11,8 @@ export type Screen =
 export type FilterTab = 'all' | 'food' | 'trade' | 'hang' | 'uic';
 
 export interface Post {
-  id: number;
+  id: string | number;
+  authorUid?: string;
   n: string;
   i: string;
   av: number;
@@ -31,7 +34,8 @@ export interface ChatMessage {
 }
 
 export interface Chat {
-  id: number;
+  id: string | number;
+  peerUid?: string;
   n: string;
   i: string;
   av: number;

@@ -2,6 +2,7 @@ import { AppProvider, useApp } from './context/AppContext';
 import { BottomNav } from './components/BottomNav';
 import { PostSheet } from './components/PostSheet';
 import { RateOverlay } from './components/RateOverlay';
+import { EmailVerificationGate } from './components/EmailVerificationGate';
 import { LoginScreen } from './screens/LoginScreen';
 import { FeedScreen } from './screens/FeedScreen';
 import { ExploreScreen } from './screens/ExploreScreen';
@@ -29,7 +30,27 @@ const SCREEN_CONTENT: Record<Screen, React.ReactNode> = {
 };
 
 function AppShell() {
-  const { screen } = useApp();
+  const { screen, authLoading, pendingVerification, user } = useApp();
+
+  if (authLoading) {
+    return (
+      <div id="app">
+        <div className="screen active" id="screen-login" style={{ justifyContent: 'center' }}>
+          <div className="login-tag">loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (pendingVerification) {
+    return (
+      <div id="app">
+        <div className="screen active" id="screen-login">
+          <EmailVerificationGate />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div id="app">
@@ -39,12 +60,16 @@ function AppShell() {
           className={`screen${screen === name ? ' active' : ''}`}
           id={`screen-${name}`}
         >
-          {SCREEN_CONTENT[name]}
+          {name === 'login' || user ? SCREEN_CONTENT[name] : null}
         </div>
       ))}
-      <PostSheet />
-      <RateOverlay />
-      <BottomNav />
+      {user && (
+        <>
+          <PostSheet />
+          <RateOverlay />
+          <BottomNav />
+        </>
+      )}
     </div>
   );
 }

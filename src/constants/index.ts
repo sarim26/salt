@@ -28,6 +28,8 @@ export const DEMO_DOMAINS: Record<string, string> = {
   mit: 'mit.edu',
 };
 
+export const ALLOWED_DOMAINS = ['uic.edu', 'illinois.edu', 'mit.edu'] as const;
+
 export const FILTER_TABS: FilterTab[] = ['all', 'food', 'trade', 'hang', 'uic'];
 
 export const BDG_DEF = [
