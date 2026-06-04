@@ -1,17 +1,17 @@
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   query,
   serverTimestamp,
-  setDoc,
-  updateDoc,
   where,
   writeBatch,
 } from 'firebase/firestore';
 import { REVIEWER_RWD } from '../constants';
 import { db } from '../lib/firebase';
-import type { Post, UserProfile } from '../types';
+import type { Post } from '../types';
+import type { UserProfile } from '../types/firestore';
 import { auraGiven } from '../utils/helpers';
 
 export async function submitRating(
@@ -25,12 +25,12 @@ export async function submitRating(
   if (!post.authorUid) throw new Error('Invalid post');
 
   const targetUid = post.authorUid;
+  if (targetUid === reviewerUid) throw new Error('Cannot rate yourself');
+
   const ratingId = `${reviewerUid}_${postId}`;
   const ratingRef = doc(db, 'ratings', ratingId);
-  const existing = await getDocs(
-    query(collection(db, 'ratings'), where('__name__', '==', ratingId))
-  );
-  if (!existing.empty) {
+  const existing = await getDoc(ratingRef);
+  if (existing.exists()) {
     throw new Error('You already rated this meetup');
   }
 
@@ -42,7 +42,8 @@ export async function submitRating(
 
   const reviewerMeetCount = (profile.meetCount || 0) + 1;
   const badges = [...(profile.badges || [])];
-  if (reviewerMeetCount >= 3 && !badges.includes('connector')) {
+  const hadConnector = badges.includes('connector');
+  if (reviewerMeetCount >= 3 && !hadConnector) {
     badges.push('connector');
   }
 
@@ -68,17 +69,15 @@ export async function submitRating(
     updatedAt: serverTimestamp(),
   });
 
-  const reviewerEventRef = doc(collection(db, 'users', reviewerUid, 'auraEvents'));
-  batch.set(reviewerEventRef, {
+  batch.set(doc(collection(db, 'users', reviewerUid, 'auraEvents')), {
     ico: 'ti-star',
     txt: `rated ${post.n} — ${stars}★ · gave ${given} aura`,
     pts: `+${REVIEWER_RWD}`,
     createdAt: serverTimestamp(),
   });
 
-  if (reviewerMeetCount >= 3 && !(profile.badges || []).includes('connector')) {
-    const badgeRef = doc(collection(db, 'users', reviewerUid, 'auraEvents'));
-    batch.set(badgeRef, {
+  if (reviewerMeetCount >= 3 && !hadConnector) {
+    batch.set(doc(collection(db, 'users', reviewerUid, 'auraEvents')), {
       ico: 'ti-award',
       txt: 'badge unlocked: connector',
       pts: '🏅',
@@ -113,8 +112,7 @@ export async function applyPendingRatings(targetUid: string): Promise<number> {
     const r = ratingDoc.data();
     aura += r.auraGiven || 0;
     batch.update(ratingDoc.ref, { applied: true });
-    const eventRef = doc(collection(db, 'users', targetUid, 'auraEvents'));
-    batch.set(eventRef, {
+    batch.set(doc(collection(db!, 'users', targetUid, 'auraEvents')), {
       ico: 'ti-star',
       txt: `rated by peer — ${r.stars}★ · +${r.auraGiven} aura`,
       pts: `+${r.auraGiven}`,
@@ -126,5 +124,3 @@ export async function applyPendingRatings(targetUid: string): Promise<number> {
   await batch.commit();
   return snap.size;
 }
-
-import { getDoc } from 'firebase/firestore';

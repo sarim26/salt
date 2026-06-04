@@ -33,7 +33,7 @@ import {
   subscribeLeaderboard,
   subscribeProfile,
 } from '../services/posts';
-import { submitRating } from '../services/ratings';
+import { applyPendingRatings, submitRating } from '../services/ratings';
 import type { UserProfile } from '../types/firestore';
 import type {
   AppMode,
@@ -396,6 +396,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const uid = firebaseUser.uid;
     return subscribeProfile(
       uid,
+      firebaseUser.email,
       (p) => {
         if (p) {
           applyProfile(p);
@@ -407,6 +408,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       (err) => toast(err.message)
     );
   }, [firebaseUser, applyProfile, toast]);
+
+  useEffect(() => {
+    if (appMode !== 'live' || !firebaseUser?.uid) return;
+    applyPendingRatings(firebaseUser.uid).catch(() => {});
+  }, [appMode, firebaseUser?.uid]);
 
   useEffect(() => {
     if (appMode === 'demo' || !firebaseUser?.emailVerified || !profile) return;
@@ -702,9 +708,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const p = posts.find((x) => x.id === ratePostId);
     if (!p) return;
 
-    if (appMode === 'live' && ratePostId) {
+    if (appMode === 'live' && ratePostId && firebaseUser && profile) {
       try {
-        const result = await submitRating(String(ratePostId), stars);
+        const result = await submitRating(
+          firebaseUser.uid,
+          profile,
+          String(ratePostId),
+          p,
+          stars
+        );
         setRateOpen(false);
         toast(`+${result.auraGiven} AURA TO THEM · +${result.reviewerReward} TO YOU`);
       } catch (e) {
@@ -728,7 +740,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (myMeets >= 3) unlockBdg('connector');
     setRateOpen(false);
     toast(`+${given} AURA TO THEM · +${REVIEWER_RWD} TO YOU`);
-  }, [starV, posts, ratePostId, meetCounts, myMeets, unlockBdg, toast, appMode]);
+  }, [
+    starV,
+    posts,
+    ratePostId,
+    meetCounts,
+    myMeets,
+    unlockBdg,
+    toast,
+    appMode,
+    firebaseUser,
+    profile,
+  ]);
 
   const closeRate = useCallback(() => setRateOpen(false), []);
 

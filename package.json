@@ -11,7 +11,8 @@
     "seed": "node scripts/seedFirestore.mjs",
     "firebase": "firebase",
     "deploy:firestore": "firebase deploy --only firestore:rules,firestore:indexes",
-    "deploy:firebase": "firebase deploy --only firestore:rules,firestore:indexes,functions",
+    "deploy:functions": "firebase deploy --only functions",
+    "deploy:firebase": "firebase deploy --only firestore:rules,firestore:indexes",
     "build:pages": "npm run build && node -e \"require('fs').copyFileSync('dist/index.html','dist/404.html')\"",
     "deploy:hosting": "npm run build && firebase deploy --only hosting",
     "deploy:all": "npm run build && firebase deploy"

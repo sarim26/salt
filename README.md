@@ -38,21 +38,21 @@ npx firebase use salt-32292
 npm run deploy:firebase
 ```
 
-### Blaze plan required for Cloud Functions
+### Spark plan (default)
 
-`npm run deploy:firebase` deploys **Firestore rules + indexes + Cloud Functions**. Functions need the **Blaze (pay-as-you-go)** plan — the free Spark plan cannot enable `cloudbuild.googleapis.com`.
+The app runs on the **free Spark plan** with **no Cloud Functions**. Auth profiles, posts, votes, chats, and ratings are handled in the **client** under Firestore Security Rules.
 
-1. Open [Firebase usage / upgrade](https://console.firebase.google.com/project/salt-32292/usage/details) and upgrade to Blaze (add a billing account).
-2. You are still on the [free tier](https://firebase.google.com/pricing) for most usage; small campus apps often stay at **$0**.
-3. Run `npm run deploy:firebase` again.
-
-**Rules + indexes only** (no Functions — works on Spark, but signup profiles, votes, ratings, and referrals will not run server-side):
+Deploy rules and indexes:
 
 ```bash
 npm run deploy:firestore
 ```
 
-Without Functions, live auth still needs profile documents; use demo mode or upgrade to Blaze for the full app.
+(`deploy:firebase` is an alias for the same Firestore deploy.)
+
+### Optional: Cloud Functions (Blaze only)
+
+`firebase/functions/` includes server-side hooks (blocking signup domains, vote score aggregation, instant aura on rate). They require **Blaze** and `npm run deploy:functions`. The React app does **not** depend on them when using Spark.
 
 ## Host at app.salt-usa.com (GitHub Pages)
 

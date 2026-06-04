@@ -1,9 +1,9 @@
 import {
-  addDoc,
   collection,
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -11,24 +11,44 @@ import {
   setDoc,
   Timestamp,
   where,
+  writeBatch,
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import type { PostDoc, UserProfile, VoteDoc } from '../types/firestore';
 import type { LeaderboardUser, Post } from '../types';
 import { expiresAtToMins } from '../utils/firestoreMappers';
+import { ensureUserProfile } from './users';
 
 const POST_TTL_MS = 24 * 60 * 60 * 1000;
 
 export function subscribeProfile(
   uid: string,
+  email: string | null | undefined,
   onData: (profile: UserProfile | null) => void,
   onError?: (err: Error) => void
 ): Unsubscribe {
   if (!db) return () => {};
+  let creating = false;
   return onSnapshot(
     doc(db, 'users', uid),
-    (snap) => onData(snap.exists() ? (snap.data() as UserProfile) : null),
+    async (snap) => {
+      if (snap.exists()) {
+        onData(snap.data() as UserProfile);
+        return;
+      }
+      onData(null);
+      if (!creating && email) {
+        creating = true;
+        try {
+          await ensureUserProfile(uid, email);
+        } catch (e) {
+          onError?.(e instanceof Error ? e : new Error('profile create failed'));
+        } finally {
+          creating = false;
+        }
+      }
+    },
     (err) => onError?.(err)
   );
 }
@@ -60,7 +80,14 @@ export function subscribeFeed(
           const data = postDoc.data() as PostDoc;
           const voteSnap = await getDoc(doc(db!, 'posts', postDoc.id, 'votes', uid));
           const vote = voteSnap.exists() ? (voteSnap.data() as VoteDoc) : null;
-          return mapPost(postDoc.id, data, vote?.value ?? 0);
+          const votesSnap = await getDocs(
+            collection(db!, 'posts', postDoc.id, 'votes')
+          );
+          let score = 0;
+          votesSnap.forEach((v) => {
+            score += (v.data() as VoteDoc).value;
+          });
+          return mapPost(postDoc.id, data, score, vote?.value ?? 0);
         })
       );
       onData(posts);
@@ -103,10 +130,17 @@ export async function createPost(
 ): Promise<string> {
   if (!db) throw new Error('Firebase not configured');
   const now = Date.now();
-  const post: Omit<PostDoc, 'createdAt' | 'expiresAt'> & {
-    createdAt: ReturnType<typeof serverTimestamp>;
-    expiresAt: Timestamp;
-  } = {
+  const postCount = (profile.postCount || 0) + 1;
+  const badges = [...(profile.badges || [])];
+  const hadFirstPost = badges.includes('first post');
+  if (postCount === 1 && !hadFirstPost) {
+    badges.push('first post');
+  }
+
+  const batch = writeBatch(db);
+  const postRef = doc(collection(db, 'posts'));
+
+  batch.set(postRef, {
     authorUid: uid,
     schoolDomain: profile.schoolDomain,
     body,
@@ -119,10 +153,25 @@ export async function createPost(
     authorInitials: profile.initials,
     authorAura: profile.aura,
     avatarIndex: profile.avatarIndex,
-  };
+  });
 
-  const ref = await addDoc(collection(db, 'posts'), post);
-  return ref.id;
+  batch.update(doc(db, 'users', uid), {
+    postCount,
+    badges,
+    updatedAt: serverTimestamp(),
+  });
+
+  if (postCount === 1 && !hadFirstPost) {
+    batch.set(doc(collection(db, 'users', uid, 'auraEvents')), {
+      ico: 'ti-award',
+      txt: 'badge unlocked: first post',
+      pts: '🏅',
+      createdAt: serverTimestamp(),
+    });
+  }
+
+  await batch.commit();
+  return postRef.id;
 }
 
 export async function setVote(postId: string, uid: string, value: 1 | -1): Promise<void> {
@@ -136,7 +185,7 @@ export async function setVote(postId: string, uid: string, value: 1 | -1): Promi
   }
 }
 
-function mapPost(id: string, data: PostDoc, uv: number): Post {
+function mapPost(id: string, data: PostDoc, score: number, uv: number): Post {
   const expiresMs = data.expiresAt?.toMillis?.() ?? Date.now();
   return {
     id,
@@ -149,7 +198,7 @@ function mapPost(id: string, data: PostDoc, uv: number): Post {
     tags: data.tags,
     loc: data.loc,
     mins: expiresAtToMins(expiresMs),
-    score: data.score,
+    score,
     uv,
     reps: 0,
     met: false,

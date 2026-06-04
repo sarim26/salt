@@ -26,6 +26,14 @@
       ]
     },
     {
+      "collectionGroup": "ratings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "targetUid", "order": "ASCENDING" },
+        { "fieldPath": "applied", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "chats",
       "queryScope": "COLLECTION",
       "fields": [
