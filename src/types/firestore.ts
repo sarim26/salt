@@ -12,6 +12,9 @@ export interface UserProfile {
   meetCounts: Record<string, number>;
   badges: string[];
   avatarIndex: number;
+  referralCount: number;
+  referredByEmail: string | null;
+  referredByUid: string | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -69,5 +72,6 @@ export interface RatingDoc {
   auraGiven: number;
   reviewerReward: number;
   schoolDomain: string;
+  applied: boolean;
   createdAt: Timestamp;
 }
