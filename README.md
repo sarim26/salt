@@ -28,7 +28,7 @@ VITE_FIREBASE_MESSAGING_SENDER_ID=
 VITE_FIREBASE_APP_ID=
 ```
 
-5. Deploy rules, indexes, and functions:
+5. Deploy backend:
 
 ```bash
 npm install --prefix firebase/functions
@@ -37,6 +37,22 @@ npx firebase login
 npx firebase use salt-32292
 npm run deploy:firebase
 ```
+
+### Blaze plan required for Cloud Functions
+
+`npm run deploy:firebase` deploys **Firestore rules + indexes + Cloud Functions**. Functions need the **Blaze (pay-as-you-go)** plan — the free Spark plan cannot enable `cloudbuild.googleapis.com`.
+
+1. Open [Firebase usage / upgrade](https://console.firebase.google.com/project/salt-32292/usage/details) and upgrade to Blaze (add a billing account).
+2. You are still on the [free tier](https://firebase.google.com/pricing) for most usage; small campus apps often stay at **$0**.
+3. Run `npm run deploy:firebase` again.
+
+**Rules + indexes only** (no Functions — works on Spark, but signup profiles, votes, ratings, and referrals will not run server-side):
+
+```bash
+npm run deploy:firestore
+```
+
+Without Functions, live auth still needs profile documents; use demo mode or upgrade to Blaze for the full app.
 
 ## Host at app.salt-usa.com (GitHub Pages)
 
@@ -130,7 +146,8 @@ firebase/
 | `npm run build` | Production build |
 | `npm run preview` | Preview production build |
 | `npm run build:pages` | Production build + `404.html` for GitHub Pages |
-| `npm run deploy:firebase` | Deploy Firestore rules, indexes, and functions |
+| `npm run deploy:firestore` | Firestore rules + indexes only (Spark OK) |
+| `npm run deploy:firebase` | Rules, indexes, and functions (**Blaze required**) |
 | `npm run deploy:hosting` | Build + deploy to Firebase Hosting (optional) |
 
 ## Cloud Functions
