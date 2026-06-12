@@ -1,4 +1,4 @@
-export type AppMode = 'demo' | 'live' | null;
+export type AppMode = 'live' | null;
 
 export type Screen =
   | 'login'
@@ -8,7 +8,7 @@ export type Screen =
   | 'chat-detail'
   | 'profile';
 
-export type FilterTab = 'all' | 'food' | 'trade' | 'hang' | 'uic';
+export type FilterTab = 'all' | 'food' | 'trade' | 'hang';
 
 export interface Post {
   id: string | number;
@@ -36,6 +36,7 @@ export interface ChatMessage {
 export interface Chat {
   id: string | number;
   peerUid?: string;
+  sourcePostId?: string | null;
   n: string;
   i: string;
   av: number;
@@ -73,6 +74,7 @@ export interface UniversityData {
 
 export interface User extends UniversityData {
   domain: string;
+  photoUrl?: string | null;
 }
 
 export interface BadgeDef {

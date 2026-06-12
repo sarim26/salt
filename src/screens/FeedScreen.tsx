@@ -1,3 +1,4 @@
+import { Avatar } from '../components/Avatar';
 import { PostCard } from '../components/PostCard';
 import { FILTER_TABS } from '../constants';
 import { useApp } from '../context/AppContext';
@@ -8,12 +9,12 @@ const TAB_LABELS: Record<FilterTab, string> = {
   food: 'food',
   trade: 'trade',
   hang: 'hang',
-  uic: 'campus only',
 };
 
 export function FeedScreen() {
   const {
     user,
+    profile,
     myAura,
     filter,
     setFilterTab,
@@ -22,6 +23,8 @@ export function FeedScreen() {
     vote,
     meetUp,
     openChatFromPost,
+    sharePost,
+    firebaseUid,
     openSheet,
     openSheetWith,
     showAura,
@@ -45,9 +48,14 @@ export function FeedScreen() {
             <i className="ti ti-sparkles" style={{ fontSize: 13, color: '#3DA882' }} />
             <span className="aura-num">{myAura}</span>
           </div>
-          <div className="avi" onClick={() => goScreen('profile')} role="button" tabIndex={0}>
-            {user.ini}
-          </div>
+          <Avatar
+            initials={user.ini}
+            photoUrl={user.photoUrl}
+            colorIndex={profile?.avatarIndex}
+            size="sm"
+            className="avi"
+            onClick={() => goScreen('profile')}
+          />
         </div>
       </div>
       <div className="school-bar">
@@ -61,7 +69,13 @@ export function FeedScreen() {
       </div>
       <div className="compose">
         <div className="compose-top">
-          <div className="cavi">{user.ini}</div>
+          <Avatar
+            initials={user.ini}
+            photoUrl={user.photoUrl}
+            colorIndex={profile?.avatarIndex}
+            size="md"
+            className="cavi"
+          />
           <div className="cfake" onClick={openSheet} role="button" tabIndex={0}>
             what&apos;s the move tonight?
           </div>
@@ -111,9 +125,11 @@ export function FeedScreen() {
               post={p}
               schoolName={user.name}
               showRec={hasAff && i === 0 && filter === 'all'}
+              currentUid={firebaseUid}
               onVote={vote}
               onMeetUp={meetUp}
               onOpenChat={openChatFromPost}
+              onShare={sharePost}
             />
           ))
         )}

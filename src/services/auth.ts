@@ -32,6 +32,12 @@ export function validateCampusEmail(email: string): string | null {
   return null;
 }
 
+export async function refreshAuthUser(user: FirebaseUser): Promise<FirebaseUser> {
+  await user.reload();
+  if (!auth?.currentUser) throw new Error('session expired');
+  return auth.currentUser;
+}
+
 export async function signUp(email: string, password: string): Promise<FirebaseUser> {
   if (!auth) throw new Error('Firebase not configured');
   const err = validateCampusEmail(email);
@@ -40,7 +46,7 @@ export async function signUp(email: string, password: string): Promise<FirebaseU
 
   const cred = await createUserWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
   await sendEmailVerification(cred.user);
-  return cred.user;
+  return refreshAuthUser(cred.user);
 }
 
 export async function signIn(email: string, password: string): Promise<FirebaseUser> {
@@ -55,7 +61,7 @@ export async function signIn(email: string, password: string): Promise<FirebaseU
       email.trim().toLowerCase(),
       password
     );
-    return cred.user;
+    return refreshAuthUser(cred.user);
   } catch (e) {
     const code = (e as { code?: string }).code || '';
     throw new Error(parseAuthError(code));

@@ -42,7 +42,19 @@ service cloud.firestore {
         && request.resource.data.meetCount == 0
         && request.resource.data.referralCount == 0
         && request.resource.data.referredByEmail == null
-        && request.resource.data.referredByUid == null;
+        && request.resource.data.referredByUid == null
+        && (!('photoUrl' in request.resource.data) || request.resource.data.photoUrl == null);
+    }
+
+    function replyCountOf(data) {
+      return 'replyCount' in data ? data.replyCount : 0;
+    }
+
+    function postReplyIncrement() {
+      return isVerified()
+        && sameSchool(resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['replyCount'])
+        && request.resource.data.replyCount == replyCountOf(resource.data) + 1;
     }
 
     function ownerProfileUpdate(uid) {
@@ -76,12 +88,14 @@ service cloud.firestore {
         && request.resource.data.authorUid == request.auth.uid
         && request.resource.data.schoolDomain == mySchool()
         && request.resource.data.score == 0
+        && replyCountOf(request.resource.data) == 0
         && request.resource.data.expiresAt > request.time;
-      allow update: if isVerified()
-        && resource.data.authorUid == request.auth.uid
-        && request.resource.data.authorUid == resource.data.authorUid
-        && request.resource.data.schoolDomain == resource.data.schoolDomain
-        && request.resource.data.score == resource.data.score;
+      allow update: if postReplyIncrement()
+        || (isVerified()
+          && resource.data.authorUid == request.auth.uid
+          && request.resource.data.authorUid == resource.data.authorUid
+          && request.resource.data.schoolDomain == resource.data.schoolDomain
+          && request.resource.data.score == resource.data.score);
       allow delete: if isVerified() && resource.data.authorUid == request.auth.uid;
 
       match /votes/{voteUid} {
@@ -96,7 +110,11 @@ service cloud.firestore {
     }
 
     match /chats/{chatId} {
-      allow read: if isVerified()
+      allow get: if isVerified() && (
+        !exists(/databases/$(database)/documents/chats/$(chatId))
+        || (request.auth.uid in resource.data.participantUids && sameSchool(resource.data))
+      );
+      allow list: if isVerified()
         && request.auth.uid in resource.data.participantUids
         && sameSchool(resource.data);
       allow create: if isVerified()
@@ -124,9 +142,13 @@ service cloud.firestore {
       allow create: if isVerified()
         && ratingId == request.auth.uid + '_' + request.resource.data.postId
         && request.resource.data.reviewerUid == request.auth.uid
+        && request.resource.data.targetUid != request.auth.uid
         && request.resource.data.applied == false
         && request.resource.data.stars >= 1
         && request.resource.data.stars <= 5
+        && request.resource.data.targetUid
+          == get(/databases/$(database)/documents/posts/$(request.resource.data.postId)).data.authorUid
+        && sameSchool(get(/databases/$(database)/documents/posts/$(request.resource.data.postId)).data)
         && !exists(/databases/$(database)/documents/ratings/$(ratingId));
       allow update: if isVerified()
         && resource.data.targetUid == request.auth.uid

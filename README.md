@@ -10,7 +10,7 @@ cp .env.example .env   # fill in Firebase web config
 npm run dev
 ```
 
-Without `.env`, the app runs in **offline demo mode** (UIC / UIUC / MIT buttons, in-memory data).
+Without `.env`, sign-in is disabled until Firebase keys are configured.
 
 ## Firebase setup
 
@@ -70,7 +70,7 @@ The frontend deploys automatically on push to `main` via [`.github/workflows/dep
    - `VITE_FIREBASE_MESSAGING_SENDER_ID`
    - `VITE_FIREBASE_APP_ID`
 
-   Without these secrets the site still builds but runs in **demo mode** only.
+   Without these secrets the site still builds but sign-in will not work.
 
 4. In [Firebase Console](https://console.firebase.google.com/) → **Authentication** → **Settings** → **Authorized domains**, add:
    - `app.salt-usa.com`
@@ -113,9 +113,9 @@ Only these email domains can sign up:
 
 Email verification is required before posting.
 
-### Demo mode
+### Profile photo
 
-UIC / UIUC / MIT buttons use **client-only sandbox** data — no Firebase session, no Firestore writes.
+On the **Me** tab, tap the camera icon on your avatar to upload a photo. Without a photo, your initials (first + last name) are shown.
 
 ### Seed sample posts (optional)
 
@@ -128,7 +128,7 @@ node scripts/seedFirestore.mjs your-project-id
 
 ```
 src/
-  context/       App state (demo vs live Firebase)
+  context/       App state + Firebase session
   services/      Auth, posts, chats, ratings
   lib/           Firebase init
   screens/       UI screens

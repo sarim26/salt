@@ -12,6 +12,7 @@ export interface UserProfile {
   meetCounts: Record<string, number>;
   badges: string[];
   avatarIndex: number;
+  photoUrl: string | null;
   referralCount: number;
   referredByEmail: string | null;
   referredByUid: string | null;
@@ -26,6 +27,7 @@ export interface PostDoc {
   tags: string[];
   loc: string | null;
   score: number;
+  replyCount: number;
   createdAt: Timestamp;
   expiresAt: Timestamp;
   authorName: string;
@@ -49,6 +51,7 @@ export interface ChatDoc {
   peerInitials: Record<string, string>;
   peerAuras: Record<string, number>;
   peerAvatars: Record<string, number>;
+  sourcePostId?: string | null;
 }
 
 export interface MessageDoc {

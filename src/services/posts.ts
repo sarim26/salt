@@ -10,6 +10,7 @@ import {
   serverTimestamp,
   setDoc,
   Timestamp,
+  updateDoc,
   where,
   writeBatch,
   type Unsubscribe,
@@ -147,6 +148,7 @@ export async function createPost(
     tags,
     loc,
     score: 0,
+    replyCount: 0,
     createdAt: serverTimestamp(),
     expiresAt: Timestamp.fromMillis(now + POST_TTL_MS),
     authorName: profile.displayName,
@@ -200,9 +202,18 @@ function mapPost(id: string, data: PostDoc, score: number, uv: number): Post {
     mins: expiresAtToMins(expiresMs),
     score,
     uv,
-    reps: 0,
+    reps: data.replyCount ?? 0,
     met: false,
   };
+}
+
+export async function incrementReplyCount(postId: string): Promise<void> {
+  if (!db) throw new Error('Firebase not configured');
+  const ref = doc(db, 'posts', postId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const count = (snap.data().replyCount ?? 0) + 1;
+  await updateDoc(ref, { replyCount: count });
 }
 
 export { mapPost };

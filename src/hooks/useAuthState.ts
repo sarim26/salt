@@ -11,11 +11,18 @@ export function useAuthState() {
       setLoading(false);
       return;
     }
-    return onAuthStateChanged(auth, (user) => {
-      setFirebaseUser(user);
+    return onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          await user.reload();
+        } catch {
+          /* use cached user if reload fails */
+        }
+      }
+      setFirebaseUser(auth!.currentUser);
       setLoading(false);
     });
   }, []);
 
-  return { firebaseUser, loading };
+  return { firebaseUser, loading, setFirebaseUser };
 }

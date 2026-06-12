@@ -24,6 +24,8 @@ export function ExploreScreen() {
     vote,
     meetUp,
     openChatFromPost,
+    sharePost,
+    firebaseUid,
   } = useApp();
 
   if (!user) return null;
@@ -71,9 +73,11 @@ export function ExploreScreen() {
                   post={p}
                   schoolName={user.name}
                   compact
+                  currentUid={firebaseUid}
                   onVote={vote}
                   onMeetUp={meetUp}
                   onOpenChat={openChatFromPost}
+                  onShare={sharePost}
                 />
               ))}
             </>

@@ -3,10 +3,12 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   query,
   serverTimestamp,
   where,
   writeBatch,
+  type Unsubscribe,
 } from 'firebase/firestore';
 import { REVIEWER_RWD } from '../constants';
 import { db } from '../lib/firebase';
@@ -25,7 +27,13 @@ export async function submitRating(
   if (!post.authorUid) throw new Error('Invalid post');
 
   const targetUid = post.authorUid;
-  if (targetUid === reviewerUid) throw new Error('Cannot rate yourself');
+  if (targetUid === reviewerUid) throw new Error('Cannot rate your own post');
+
+  const postSnap = await getDoc(doc(db, 'posts', postId));
+  if (!postSnap.exists()) throw new Error('Post not found');
+  const postData = postSnap.data();
+  if (postData.authorUid !== targetUid) throw new Error('Invalid post');
+  if (postData.schoolDomain !== profile.schoolDomain) throw new Error('Wrong campus');
 
   const ratingId = `${reviewerUid}_${postId}`;
   const ratingRef = doc(db, 'ratings', ratingId);
@@ -123,4 +131,37 @@ export async function applyPendingRatings(targetUid: string): Promise<number> {
   batch.update(userRef, { aura, updatedAt: serverTimestamp() });
   await batch.commit();
   return snap.size;
+}
+
+export function subscribePendingRatings(
+  targetUid: string,
+  onApplied: (count: number) => void,
+  onError?: (err: Error) => void
+): Unsubscribe {
+  if (!db) return () => {};
+
+  const q = query(
+    collection(db, 'ratings'),
+    where('targetUid', '==', targetUid),
+    where('applied', '==', false)
+  );
+
+  let applying = false;
+
+  return onSnapshot(
+    q,
+    async (snap) => {
+      if (snap.empty || applying) return;
+      applying = true;
+      try {
+        const count = await applyPendingRatings(targetUid);
+        if (count > 0) onApplied(count);
+      } catch (e) {
+        onError?.(e instanceof Error ? e : new Error('could not apply ratings'));
+      } finally {
+        applying = false;
+      }
+    },
+    (err) => onError?.(err)
+  );
 }

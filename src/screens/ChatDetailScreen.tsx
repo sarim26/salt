@@ -4,12 +4,12 @@ import { useApp } from '../context/AppContext';
 import { lvl } from '../utils/helpers';
 
 export function ChatDetailScreen() {
-  const { user, chats, curChat, appMode, currentChatMessages, goScreen, sendMsg } = useApp();
+  const { user, chats, curChat, currentChatMessages, goScreen, sendMsg } = useApp();
   const [input, setInput] = useState('');
   const msgsRef = useRef<HTMLDivElement>(null);
 
   const c = chats.find((x) => x.id === curChat);
-  const msgs = appMode === 'live' ? currentChatMessages : c?.msgs ?? [];
+  const msgs = currentChatMessages;
 
   useEffect(() => {
     if (msgsRef.current) msgsRef.current.scrollTop = msgsRef.current.scrollHeight;

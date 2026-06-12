@@ -32,7 +32,7 @@ export function EmailVerificationGate() {
         </button>
         <button
           type="button"
-          className="demo-btn"
+          className="auth-toggle"
           style={{ width: '100%', marginTop: 10, padding: '8px 16px' }}
           onClick={resendVerification}
         >

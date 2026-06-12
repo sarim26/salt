@@ -5,24 +5,29 @@ import { fmt, lvl, pct, tc } from '../utils/helpers';
 interface PostCardProps {
   post: Post;
   schoolName: string;
+  currentUid?: string | null;
   showRec?: boolean;
   compact?: boolean;
   onVote: (id: string | number, d: number) => void;
   onMeetUp: (id: string | number) => void;
   onOpenChat: (id: string | number) => void;
+  onShare: (id: string | number) => void;
 }
 
 export function PostCard({
   post: p,
   schoolName,
+  currentUid,
   showRec,
   compact,
   onVote,
   onMeetUp,
   onOpenChat,
+  onShare,
 }: PostCardProps) {
   const u = p.mins < 120;
   const sc = p.score > 0 ? 'pos' : p.score < 0 ? 'neg' : '';
+  const isOwnPost = Boolean(currentUid && p.authorUid && currentUid === p.authorUid);
 
   if (compact) {
     return (
@@ -114,20 +119,35 @@ export function PostCard({
               </div>
             )}
             <div className="pacts">
-              <button type="button" className="abtn" onClick={() => onOpenChat(p.id)}>
+              <button
+                type="button"
+                className="abtn"
+                onClick={() => onOpenChat(p.id)}
+                disabled={isOwnPost}
+                title={isOwnPost ? 'cannot reply to your own post' : 'reply'}
+              >
                 <i className="ti ti-message-circle" />
-                {p.reps} replies
-              </button>
-              <button type="button" className="abtn">
-                <i className="ti ti-share" />
+                {p.reps} {p.reps === 1 ? 'reply' : 'replies'}
               </button>
               <button
                 type="button"
-                className={`mbtn${p.met ? ' active' : ''}`}
-                onClick={() => onMeetUp(p.id)}
+                className="abtn"
+                onClick={() => onShare(p.id)}
+                aria-label="share post"
               >
-                {p.met ? 'RATE AURA ✦' : 'MEET UP'}
+                <i className="ti ti-share" />
               </button>
+              {isOwnPost ? (
+                <span className="mbtn mbtn-own">YOUR POST</span>
+              ) : (
+                <button
+                  type="button"
+                  className={`mbtn${p.met ? ' active' : ''}`}
+                  onClick={() => onMeetUp(p.id)}
+                >
+                  {p.met ? 'RATE AURA ✦' : 'MEET UP'}
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -30,7 +30,9 @@ const SCREEN_CONTENT: Record<Screen, React.ReactNode> = {
 };
 
 function AppShell() {
-  const { screen, authLoading, pendingVerification, user } = useApp();
+  const { screen, authLoading, pendingVerification, needsEmailVerification, user } = useApp();
+
+  const showVerificationGate = needsEmailVerification || pendingVerification;
 
   if (authLoading) {
     return (
@@ -42,7 +44,7 @@ function AppShell() {
     );
   }
 
-  if (pendingVerification) {
+  if (showVerificationGate) {
     return (
       <div id="app">
         <div className="screen active" id="screen-login">
@@ -63,7 +65,7 @@ function AppShell() {
           {name === 'login' || user ? SCREEN_CONTENT[name] : null}
         </div>
       ))}
-      {user && (
+      {user && !needsEmailVerification && (
         <>
           <PostSheet />
           <RateOverlay />

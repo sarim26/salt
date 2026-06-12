@@ -7,7 +7,6 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { DEMO_DOMAINS, REVIEWER_RWD } from '../constants';
 import { UNIVERSITIES } from '../data/universities';
 import { useAuthState } from '../hooks/useAuthState';
 import { isFirebaseConfigured } from '../lib/firebase';
@@ -17,6 +16,7 @@ import {
   resetPassword,
   signIn,
   signUp,
+  refreshAuthUser,
 } from '../services/auth';
 import {
   markChatRead,
@@ -33,7 +33,9 @@ import {
   subscribeLeaderboard,
   subscribeProfile,
 } from '../services/posts';
-import { applyPendingRatings, submitRating } from '../services/ratings';
+import { applyPendingRatings, submitRating, subscribePendingRatings } from '../services/ratings';
+import { uploadAvatar } from '../services/users';
+import { sharePost as sharePostUtil } from '../utils/share';
 import type { UserProfile } from '../types/firestore';
 import type {
   AppMode,
@@ -50,7 +52,6 @@ import {
   auraGiven,
   decayNote,
   lvl,
-  now,
   sortedPosts,
   tagAff,
 } from '../utils/helpers';
@@ -61,6 +62,7 @@ interface AppContextValue {
   authLoading: boolean;
   authMode: 'signin' | 'signup';
   pendingVerification: boolean;
+  needsEmailVerification: boolean;
   user: User | null;
   profile: UserProfile | null;
   firebaseUid: string | null;
@@ -100,8 +102,8 @@ interface AppContextValue {
   setStarV: (n: number) => void;
   goScreen: (n: Screen) => void;
   doLogin: () => void;
-  demoLogin: (u: string) => void;
   doLogout: () => void;
+  uploadProfilePhoto: (file: File) => Promise<void>;
   resendVerification: () => void;
   checkVerification: () => void;
   resetPassword: () => void;
@@ -111,6 +113,7 @@ interface AppContextValue {
   vote: (id: string | number, d: number) => void;
   meetUp: (id: string | number) => void;
   openChatFromPost: (id: string | number) => void;
+  sharePost: (id: string | number) => void;
   openChatD: (id: string | number) => void;
   sendMsg: (text: string) => void;
   openSheet: () => void;
@@ -137,6 +140,7 @@ function profileToUser(profile: UserProfile): User {
     ini: profile.initials,
     full: profile.displayName,
     school: profile.schoolLabel,
+    photoUrl: profile.photoUrl ?? null,
     posts: [],
     chats: [],
     lb: [],
@@ -144,7 +148,7 @@ function profileToUser(profile: UserProfile): User {
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const { firebaseUser, loading: authLoading } = useAuthState();
+  const { firebaseUser, loading: authLoading, setFirebaseUser } = useAuthState();
 
   const [appMode, setAppMode] = useState<AppMode>(null);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
@@ -165,7 +169,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [aHist, setAHist] = useState<AuraHistoryItem[]>([]);
   const [earnedBdg, setEarnedBdg] = useState<Set<string>>(new Set(INITIAL_BADGES));
   const [curChat, setCurChat] = useState<string | number | null>(null);
-  const [nid, setNid] = useState(999);
   const [ratePostId, setRatePostId] = useState<string | number | null>(null);
   const [rateTargetUid, setRateTargetUid] = useState<string | null>(null);
   const [rateWho, setRateWho] = useState('');
@@ -192,27 +195,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toastTimer.current = setTimeout(() => setToastVisible(false), 3400);
   }, []);
 
-  const unlockBdg = useCallback(
-    (name: string) => {
-      setEarnedBdg((prev) => {
-        if (prev.has(name)) return prev;
-        const next = new Set(prev);
-        next.add(name);
-        setAHist((h) =>
-          h.concat({
-            ico: 'ti-award',
-            txt: `badge unlocked: ${name}`,
-            pts: '🏅',
-            t: 'just now',
-          })
-        );
-        toast(`BADGE UNLOCKED: ${name.toUpperCase()}`);
-        return next;
-      });
-    },
-    [toast]
-  );
-
   const resetSession = useCallback(() => {
     setAppMode(null);
     setUser(null);
@@ -234,73 +216,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setScreen('login');
   }, []);
 
-  const loginAsDemo = useCallback((dom: string) => {
-    const data = UNIVERSITIES[dom];
-    if (!data) return;
-    setAppMode('demo');
-    setUser({ domain: dom, ...data });
-    setProfile(null);
-    setMyAura(247);
-    setMyPosts(0);
-    setMyMeets(0);
-    setMeetCounts({});
-    setMetPostIds(new Set());
-    setAHist([]);
-    setFilter('all');
-    setPosts(
-      JSON.parse(JSON.stringify(data.posts)).map((p: Post) => ({
-        ...p,
-        id: String(p.id),
-      }))
-    );
-    setChats(
-      JSON.parse(JSON.stringify(data.chats)).map((c: Chat) => ({
-        ...c,
-        id: String(c.id),
-      }))
-    );
-    setLb(JSON.parse(JSON.stringify(data.lb)) as LeaderboardUser[]);
-    setEarnedBdg(new Set(INITIAL_BADGES));
-    setPendingVerification(false);
-    setScreen('feed');
-  }, []);
-
-  const applyProfile = useCallback((p: UserProfile) => {
-    setProfile(p);
-    setUser(profileToUser(p));
-    setMyAura(p.aura);
-    setMyPosts(p.postCount);
-    setMyMeets(p.meetCount);
-    setMeetCounts(p.meetCounts || {});
-    setEarnedBdg(new Set(p.badges || []));
-  }, []);
-
-  const demoLogin = useCallback(
-    (u: string) => {
-      const dom = DEMO_DOMAINS[u];
-      if (dom) loginAsDemo(dom);
+  const applyProfile = useCallback(
+    (p: UserProfile) => {
+      if (!firebaseUser?.emailVerified) return;
+      setProfile(p);
+      setUser(profileToUser(p));
+      setMyAura(p.aura);
+      setMyPosts(p.postCount);
+      setMyMeets(p.meetCount);
+      setMeetCounts(p.meetCounts || {});
+      setEarnedBdg(new Set(p.badges || []));
     },
-    [loginAsDemo]
+    [firebaseUser?.emailVerified]
   );
+
+  const blockUnverifiedSession = useCallback(() => {
+    setPendingVerification(true);
+    setAppMode(null);
+    setUser(null);
+    setProfile(null);
+    setPosts([]);
+    setChats([]);
+    setCurrentChatMessages([]);
+    setLb([]);
+    setScreen('login');
+  }, []);
 
   const doLogin = useCallback(async () => {
     if (!isFirebaseConfigured) {
-      const em = loginEmail.trim().toLowerCase();
-      if (!em.includes('@')) {
-        setLoginError('enter a valid .edu email');
-        return;
-      }
-      const dom = em.split('@')[1];
-      if (!UNIVERSITIES[dom]) {
-        setLoginError('only uic.edu, illinois.edu, mit.edu in demo');
-        return;
-      }
-      if (loginPassword.length < 3) {
-        setLoginError('password too short');
-        return;
-      }
-      setLoginError('');
-      loginAsDemo(dom);
+      setLoginError('app not configured — firebase keys missing');
       return;
     }
 
@@ -312,15 +256,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : await signIn(loginEmail, loginPassword);
 
       if (!fbUser.emailVerified) {
-        setPendingVerification(true);
-        setAppMode(null);
-        setScreen('login');
+        blockUnverifiedSession();
+        setLoginEmail(fbUser.email || loginEmail);
         return;
       }
+
+      setPendingVerification(false);
     } catch (e) {
       setLoginError(e instanceof Error ? e.message : 'authentication failed');
     }
-  }, [loginEmail, loginPassword, authMode, loginAsDemo]);
+  }, [loginEmail, loginPassword, authMode, blockUnverifiedSession]);
 
   const handleResendVerification = useCallback(async () => {
     if (!firebaseUser) return;
@@ -337,16 +282,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!firebaseUser) return;
     setLoginError('');
     try {
-      await firebaseUser.reload();
-      if (!firebaseUser.emailVerified) {
+      const fresh = await refreshAuthUser(firebaseUser);
+      setFirebaseUser(fresh);
+      if (!fresh.emailVerified) {
         setLoginError('email not verified yet — check your inbox');
+        blockUnverifiedSession();
         return;
       }
       setPendingVerification(false);
     } catch (e) {
       setLoginError(e instanceof Error ? e.message : 'could not verify status');
     }
-  }, [firebaseUser]);
+  }, [firebaseUser, setFirebaseUser, blockUnverifiedSession]);
 
   const handleResetPassword = useCallback(async () => {
     setLoginError('');
@@ -359,7 +306,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [loginEmail, toast]);
 
   const doLogout = useCallback(async () => {
-    if (appMode === 'live' && isFirebaseConfigured) {
+    if (isFirebaseConfigured) {
       try {
         await firebaseLogOut();
       } catch {
@@ -370,38 +317,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setLoginEmail('');
     setLoginPassword('');
     setLoginError('');
-  }, [appMode, resetSession]);
+  }, [resetSession]);
 
   useEffect(() => {
-    if (authLoading || appMode === 'demo') return;
+    if (authLoading) return;
     if (!firebaseUser) {
-      if (appMode === 'live') resetSession();
+      if (profile || appMode === 'live') resetSession();
       return;
     }
     if (!firebaseUser.emailVerified) {
-      setPendingVerification(true);
+      blockUnverifiedSession();
       setLoginEmail(firebaseUser.email || '');
-      setScreen('login');
+    } else {
+      setPendingVerification(false);
     }
-  }, [firebaseUser, authLoading, appMode, resetSession]);
+  }, [firebaseUser, authLoading, profile, appMode, resetSession, blockUnverifiedSession]);
 
   useEffect(() => {
-    if (!firebaseUser?.emailVerified || appMode === 'demo') return;
+    if (!firebaseUser?.emailVerified) return;
     if (profile) setAppMode('live');
-  }, [firebaseUser, profile, appMode]);
+  }, [firebaseUser, profile]);
 
   useEffect(() => {
-    if (appMode === 'demo' || !firebaseUser?.emailVerified) return;
+    if (!firebaseUser?.emailVerified) return;
 
     const uid = firebaseUser.uid;
     return subscribeProfile(
       uid,
       firebaseUser.email,
       (p) => {
-        if (p) {
+        if (p && firebaseUser.emailVerified) {
           applyProfile(p);
           setAppMode('live');
-          setPendingVerification(false);
           setScreen((s) => (s === 'login' ? 'feed' : s));
         }
       },
@@ -410,45 +357,65 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [firebaseUser, applyProfile, toast]);
 
   useEffect(() => {
-    if (appMode !== 'live' || !firebaseUser?.uid) return;
-    applyPendingRatings(firebaseUser.uid).catch(() => {});
-  }, [appMode, firebaseUser?.uid]);
+    if (!profile || !firebaseUser?.uid) return;
+    applyPendingRatings(firebaseUser.uid).catch((e) => {
+      toast(e instanceof Error ? e.message : 'could not apply ratings');
+    });
+  }, [profile, firebaseUser?.uid, toast]);
 
   useEffect(() => {
-    if (appMode === 'demo' || !firebaseUser?.emailVerified || !profile) return;
+    if (!firebaseUser?.emailVerified || !profile) return;
 
     const uid = firebaseUser.uid;
     const domain = profile.schoolDomain;
+    const onErr = (err: Error) => toast(err.message);
 
     const unsubs = [
-      subscribeFeed(domain, uid, (feedPosts) => {
-        setPosts(
-          feedPosts.map((p) => ({
-            ...p,
-            met: metPostIds.has(p.id),
-          }))
-        );
-      }),
+      subscribeFeed(
+        domain,
+        uid,
+        (feedPosts) => {
+          setPosts(
+            feedPosts.map((p) => ({
+              ...p,
+              met: metPostIds.has(p.id),
+            }))
+          );
+        },
+        onErr
+      ),
       subscribeLeaderboard(domain, setLb),
-      subscribeChats(uid, domain, setChats),
-      subscribeAuraEvents(uid, setAHist),
+      subscribeChats(uid, domain, setChats, onErr),
+      subscribeAuraEvents(uid, setAHist, onErr),
+      subscribePendingRatings(
+        uid,
+        (count) => {
+          if (count > 0) toast(`+${count} NEW RATING${count > 1 ? 'S' : ''} APPLIED TO YOUR AURA`);
+        },
+        onErr
+      ),
     ];
 
     return () => unsubs.forEach((u) => u());
-  }, [appMode, firebaseUser, profile, metPostIds]);
+  }, [firebaseUser, profile, metPostIds, toast]);
 
   useEffect(() => {
-    if (appMode === 'demo' || !firebaseUser || !curChat) {
+    if (!firebaseUser || !curChat) {
       setCurrentChatMessages([]);
       return;
     }
-    return subscribeMessages(String(curChat), firebaseUser.uid, setCurrentChatMessages);
-  }, [appMode, firebaseUser, curChat]);
+    return subscribeMessages(
+      String(curChat),
+      firebaseUser.uid,
+      setCurrentChatMessages,
+      (err) => toast(err.message)
+    );
+  }, [firebaseUser, curChat, toast]);
 
   useEffect(() => {
-    if (appMode === 'demo' || !firebaseUser || !curChat) return;
+    if (!firebaseUser || !curChat) return;
     markChatRead(String(curChat), firebaseUser.uid);
-  }, [appMode, firebaseUser, curChat, currentChatMessages.length]);
+  }, [firebaseUser, curChat, currentChatMessages.length]);
 
   const goScreen = useCallback(
     (n: Screen) => {
@@ -486,23 +453,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const vote = useCallback(
     async (id: string | number, d: number) => {
-      if (appMode === 'live' && firebaseUser) {
-        try {
-          await setVote(String(id), firebaseUser.uid, d as 1 | -1);
-        } catch (e) {
-          toast(e instanceof Error ? e.message : 'vote failed');
-        }
-        return;
+      if (!firebaseUser) return;
+      try {
+        await setVote(String(id), firebaseUser.uid, d as 1 | -1);
+      } catch (e) {
+        toast(e instanceof Error ? e.message : 'vote failed');
       }
-      setPosts((prev) =>
-        prev.map((p) => {
-          if (p.id !== id) return p;
-          if (p.uv === d) return { ...p, score: p.score - d, uv: 0 };
-          return { ...p, score: p.score + (d - p.uv), uv: d };
-        })
-      );
     },
-    [appMode, firebaseUser, toast]
+    [firebaseUser, toast]
   );
 
   const meetUp = useCallback(
@@ -510,17 +468,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const p = posts.find((x) => x.id === id);
       if (!p) return;
 
+      if (firebaseUser && p.authorUid && p.authorUid === firebaseUser.uid) {
+        toast('YOU CANNOT RATE YOUR OWN POST');
+        return;
+      }
+
       setMetPostIds((prev) => new Set(prev).add(id));
       setPosts((prev) => prev.map((x) => (x.id === id ? { ...x, met: true } : x)));
 
-      if (appMode === 'demo') {
-        setMyMeets((m) => m + 1);
-      }
-
-      const targetKey = appMode === 'live' ? p.authorUid || p.i : p.i;
+      const targetKey = p.authorUid || p.i;
       setTimeout(() => {
         setRatePostId(id);
-        setRateTargetUid(appMode === 'live' ? p.authorUid || null : null);
+        setRateTargetUid(p.authorUid || null);
         setStarV(0);
         setRateWho(p.n.toUpperCase());
         setRateDecay(decayNote(targetKey, meetCounts));
@@ -528,7 +487,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setRateOpen(true);
       }, 400);
     },
-    [posts, appMode, meetCounts]
+    [posts, meetCounts, firebaseUser, toast]
+  );
+
+  const sharePost = useCallback(
+    async (id: string | number) => {
+      const p = posts.find((x) => x.id === id);
+      if (!p || !user) return;
+      try {
+        const result = await sharePostUtil(p, user.name);
+        toast(result === 'shared' ? 'POST SHARED' : 'POST LINK COPIED');
+      } catch (e) {
+        if ((e as Error).name !== 'AbortError') {
+          toast(e instanceof Error ? e.message : 'share failed');
+        }
+      }
+    },
+    [posts, user, toast]
   );
 
   const openChatFromPost = useCallback(
@@ -536,87 +511,53 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const p = posts.find((x) => x.id === id);
       if (!p) return;
 
-      if (appMode === 'live' && firebaseUser && profile && p.authorUid) {
-        try {
-          const chatId = await openChatFromPostAuthor(
-            firebaseUser.uid,
-            profile,
-            p.authorUid
-          );
-          setCurChat(chatId);
-          setScreen('chat-detail');
-        } catch (e) {
-          toast(e instanceof Error ? e.message : 'could not open chat');
-        }
+      if (!firebaseUser || !profile || !p.authorUid) return;
+      if (p.authorUid === firebaseUser.uid) {
+        toast('YOU CANNOT REPLY TO YOUR OWN POST');
         return;
       }
-
-      setChats((prev) => {
-        let c = prev.find((x) => x.n === p.n);
-        if (c) {
-          setCurChat(c.id);
-          setScreen('chat-detail');
-          return prev.map((ch) => (ch.id === c!.id ? { ...ch, unread: false } : ch));
-        }
-        const newChat: Chat = {
-          id: String(prev.length + 100),
-          n: p.n,
-          i: p.i,
-          av: p.av,
-          aura: p.aura,
-          preview: '',
-          time: 'now',
-          unread: false,
-          msgs: [],
-        };
-        setCurChat(newChat.id);
+      try {
+        const chatId = await openChatFromPostAuthor(
+          firebaseUser.uid,
+          profile,
+          p.authorUid,
+          String(p.id)
+        );
+        setCurChat(chatId);
         setScreen('chat-detail');
-        return [newChat, ...prev];
-      });
+      } catch (e) {
+        toast(e instanceof Error ? e.message : 'could not open chat');
+      }
     },
-    [posts, appMode, firebaseUser, profile, toast]
+    [posts, firebaseUser, profile, toast]
   );
 
-  const openChatD = useCallback(
-    (id: string | number) => {
-      if (appMode === 'demo') {
-        setChats((prev) => prev.map((c) => (c.id === id ? { ...c, unread: false } : c)));
-      }
-      setCurChat(id);
-      setScreen('chat-detail');
-    },
-    [appMode]
-  );
+  const openChatD = useCallback((id: string | number) => {
+    setCurChat(id);
+    setScreen('chat-detail');
+  }, []);
 
   const sendMsg = useCallback(
     async (text: string) => {
       const txt = text.trim();
       if (!txt || curChat == null) return;
 
-      if (appMode === 'live' && firebaseUser) {
-        const chat = chats.find((c) => c.id === curChat);
-        if (!chat?.peerUid) return;
-        try {
-          await sendMessage(String(curChat), firebaseUser.uid, chat.peerUid, txt);
-        } catch (e) {
-          toast(e instanceof Error ? e.message : 'send failed');
-        }
-        return;
+      if (!firebaseUser) return;
+      const chat = chats.find((c) => c.id === curChat);
+      if (!chat?.peerUid) return;
+      try {
+        await sendMessage(
+          String(curChat),
+          firebaseUser.uid,
+          chat.peerUid,
+          txt,
+          chat.sourcePostId
+        );
+      } catch (e) {
+        toast(e instanceof Error ? e.message : 'send failed');
       }
-
-      setChats((prev) =>
-        prev.map((c) => {
-          if (c.id !== curChat) return c;
-          return {
-            ...c,
-            msgs: [...c.msgs, { me: true, text: txt, time: now() }],
-            preview: txt,
-            time: 'now',
-          };
-        })
-      );
     },
-    [curChat, appMode, firebaseUser, chats, toast]
+    [curChat, firebaseUser, chats, toast]
   );
 
   const openSheet = useCallback(() => setSheetOpen(true), []);
@@ -633,73 +574,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!txt || !user) return;
     const loc = postLoc.trim();
 
-    if (appMode === 'live' && firebaseUser && profile) {
-      try {
-        await createPost(firebaseUser.uid, profile, txt, [postTag], loc || null);
-        setPostText('');
-        setPostLoc('');
-        setSheetOpen(false);
-        setFilter('all');
-        toast('POST IS LIVE — GONE IN 24H');
-      } catch (e) {
-        toast(e instanceof Error ? e.message : 'post failed');
-      }
-      return;
+    if (!firebaseUser || !profile) return;
+    try {
+      await createPost(firebaseUser.uid, profile, txt, [postTag], loc || null);
+      setPostText('');
+      setPostLoc('');
+      setSheetOpen(false);
+      setFilter('all');
+      toast('POST IS LIVE — GONE IN 24H');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'post failed');
     }
-
-    setMyPosts((n) => {
-      const next = n + 1;
-      if (next === 1) unlockBdg('first post');
-      return next;
-    });
-    setPosts((prev) => [
-      {
-        id: String(nid),
-        n: user.full,
-        i: user.ini,
-        av: 0,
-        aura: myAura,
-        body: txt,
-        tags: [postTag],
-        loc: loc || null,
-        mins: 1440,
-        score: 0,
-        uv: 0,
-        reps: 0,
-        met: false,
-      },
-      ...prev,
-    ]);
-    setNid((n) => n + 1);
-    setPostText('');
-    setPostLoc('');
-    setSheetOpen(false);
-    setFilter('all');
-    toast('POST IS LIVE — GONE IN 24H');
-  }, [
-    postText,
-    postTag,
-    postLoc,
-    user,
-    myAura,
-    nid,
-    unlockBdg,
-    toast,
-    appMode,
-    firebaseUser,
-    profile,
-  ]);
+  }, [postText, postTag, postLoc, user, toast, firebaseUser, profile]);
 
   const setStarWithFeedback = useCallback(
     (n: number) => {
       setStarV(n);
       const targetKey =
-        appMode === 'live' && rateTargetUid ? rateTargetUid : posts.find((x) => x.id === ratePostId)?.i;
+        rateTargetUid || posts.find((x) => x.id === ratePostId)?.i;
       if (targetKey) {
         setRatePointsLabel(`GIVES THEM ${auraGiven(n, targetKey, meetCounts)} AURA PTS`);
       }
     },
-    [posts, ratePostId, rateTargetUid, meetCounts, appMode]
+    [posts, ratePostId, rateTargetUid, meetCounts]
   );
 
   const submitRate = useCallback(async () => {
@@ -708,67 +605,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const p = posts.find((x) => x.id === ratePostId);
     if (!p) return;
 
-    if (appMode === 'live' && ratePostId && firebaseUser && profile) {
-      try {
-        const result = await submitRating(
-          firebaseUser.uid,
-          profile,
-          String(ratePostId),
-          p,
-          stars
-        );
-        setRateOpen(false);
-        toast(`+${result.auraGiven} AURA TO THEM · +${result.reviewerReward} TO YOU`);
-      } catch (e) {
-        toast(e instanceof Error ? e.message : 'rating failed');
-      }
+    if (!ratePostId || !firebaseUser || !profile) return;
+    if (p.authorUid && p.authorUid === firebaseUser.uid) {
+      toast('YOU CANNOT RATE YOUR OWN POST');
+      setRateOpen(false);
       return;
     }
-
-    const given = auraGiven(stars, p.i, meetCounts);
-    setMeetCounts((mc) => ({ ...mc, [p.i]: (mc[p.i] || 0) + 1 }));
-    setMyAura((a) => a + REVIEWER_RWD);
-    setAHist((h) => [
-      {
-        ico: 'ti-star',
-        txt: `rated ${p.n} — ${stars}★ · gave ${given} aura`,
-        pts: `+${REVIEWER_RWD}`,
-        t: 'just now',
-      },
-      ...h,
-    ]);
-    if (myMeets >= 3) unlockBdg('connector');
-    setRateOpen(false);
-    toast(`+${given} AURA TO THEM · +${REVIEWER_RWD} TO YOU`);
-  }, [
-    starV,
-    posts,
-    ratePostId,
-    meetCounts,
-    myMeets,
-    unlockBdg,
-    toast,
-    appMode,
-    firebaseUser,
-    profile,
-  ]);
+    try {
+      const result = await submitRating(
+        firebaseUser.uid,
+        profile,
+        String(ratePostId),
+        p,
+        stars
+      );
+      setRateOpen(false);
+      toast(
+        `+${result.auraGiven} AURA SENT · +${result.reviewerReward} TO YOU · THEY GET IT WHEN ONLINE`
+      );
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'rating failed');
+    }
+  }, [starV, posts, ratePostId, toast, firebaseUser, profile]);
 
   const closeRate = useCallback(() => setRateOpen(false), []);
 
   const doSearch = useCallback((v: string) => setSearchQuery(v), []);
 
-  useEffect(() => {
-    if (appMode !== 'demo' || !user) return;
-    const t = setInterval(() => {
-      setPosts((prev) => {
-        const next = prev
-          .map((p) => (p.mins > 0 ? { ...p, mins: p.mins - 1 } : p))
-          .filter((p) => p.mins > 0);
-        return next;
-      });
-    }, 60000);
-    return () => clearInterval(t);
-  }, [user, appMode]);
+  const uploadProfilePhoto = useCallback(
+    async (file: File) => {
+      if (!firebaseUser) return;
+      try {
+        const photoUrl = await uploadAvatar(firebaseUser.uid, file);
+        setProfile((prev) => (prev ? { ...prev, photoUrl } : prev));
+        setUser((prev) => (prev ? { ...prev, photoUrl } : prev));
+        toast('PROFILE PHOTO UPDATED');
+      } catch (e) {
+        toast(e instanceof Error ? e.message : 'upload failed');
+      }
+    },
+    [firebaseUser, toast]
+  );
+
+  const needsEmailVerification = Boolean(firebaseUser && !firebaseUser.emailVerified);
 
   const value: AppContextValue = {
     screen,
@@ -776,6 +655,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     authLoading,
     authMode,
     pendingVerification,
+    needsEmailVerification,
     user,
     profile,
     firebaseUid: firebaseUser?.uid ?? null,
@@ -815,8 +695,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setStarV: setStarWithFeedback,
     goScreen,
     doLogin,
-    demoLogin,
     doLogout,
+    uploadProfilePhoto,
     resendVerification: handleResendVerification,
     checkVerification,
     resetPassword: handleResetPassword,
@@ -826,6 +706,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     vote,
     meetUp,
     openChatFromPost,
+    sharePost,
     openChatD,
     sendMsg,
     openSheet,

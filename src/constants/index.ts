@@ -22,15 +22,9 @@ export const DECAY = [1, 0.6, 0.3, 0.1];
 
 export const REVIEWER_RWD = 15;
 
-export const DEMO_DOMAINS: Record<string, string> = {
-  uic: 'uic.edu',
-  uiuc: 'illinois.edu',
-  mit: 'mit.edu',
-};
-
 export const ALLOWED_DOMAINS = ['uic.edu', 'illinois.edu', 'mit.edu'] as const;
 
-export const FILTER_TABS: FilterTab[] = ['all', 'food', 'trade', 'hang', 'uic'];
+export const FILTER_TABS: FilterTab[] = ['all', 'food', 'trade', 'hang'];
 
 export const BDG_DEF = [
   { n: 'verified student', c: 'c' as const },
