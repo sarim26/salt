@@ -62,7 +62,7 @@ The frontend deploys automatically on push to `main` via [`.github/workflows/dep
 
 1. Push this repo to GitHub.
 2. **Settings** → **Pages** → **Build and deployment** → Source: **GitHub Actions**.
-3. **Settings** → **Secrets and variables** → **Actions** → add repository secrets (same values as `.env`):
+3. **Settings** → **Secrets and variables** → **Actions** → **Repository secrets** (not Environment secrets) — add:
    - `VITE_FIREBASE_API_KEY`
    - `VITE_FIREBASE_AUTH_DOMAIN`
    - `VITE_FIREBASE_PROJECT_ID`
@@ -70,7 +70,9 @@ The frontend deploys automatically on push to `main` via [`.github/workflows/dep
    - `VITE_FIREBASE_MESSAGING_SENDER_ID`
    - `VITE_FIREBASE_APP_ID`
 
-   Without these secrets the site still builds but sign-in will not work.
+   After adding secrets, **re-run the deploy** (Actions → Deploy to GitHub Pages → Run workflow). The live site does not update until a new build completes.
+
+   The workflow fails the build if any secret is missing (no more silent “Firebase not configured” deploys).
 
 4. In [Firebase Console](https://console.firebase.google.com/) → **Authentication** → **Settings** → **Authorized domains**, add:
    - `app.salt-usa.com`
