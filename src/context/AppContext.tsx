@@ -48,6 +48,7 @@ import type {
   Screen,
   User,
 } from '../types';
+import { firestoreErrorMessage } from '../utils/firestoreErrors';
 import {
   auraGiven,
   decayNote,
@@ -352,14 +353,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setScreen((s) => (s === 'login' ? 'feed' : s));
         }
       },
-      (err) => toast(err.message)
+      (err) => toast(firestoreErrorMessage(err))
     );
   }, [firebaseUser, applyProfile, toast]);
 
   useEffect(() => {
     if (!profile || !firebaseUser?.uid) return;
     applyPendingRatings(firebaseUser.uid).catch((e) => {
-      toast(e instanceof Error ? e.message : 'could not apply ratings');
+      toast(firestoreErrorMessage(e));
     });
   }, [profile, firebaseUser?.uid, toast]);
 
@@ -368,7 +369,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const uid = firebaseUser.uid;
     const domain = profile.schoolDomain;
-    const onErr = (err: Error) => toast(err.message);
+    const onErr = (err: Error) => toast(firestoreErrorMessage(err));
 
     const unsubs = [
       subscribeFeed(
@@ -408,7 +409,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       String(curChat),
       firebaseUser.uid,
       setCurrentChatMessages,
-      (err) => toast(err.message)
+      (err) => toast(firestoreErrorMessage(err))
     );
   }, [firebaseUser, curChat, toast]);
 

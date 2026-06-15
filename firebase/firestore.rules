@@ -23,20 +23,25 @@ service cloud.firestore {
       return domain in ['uic.edu', 'illinois.edu', 'mit.edu'];
     }
 
-    function mySchool() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.schoolDomain;
+    // Use auth email domain — do NOT require users/{uid} profile doc to exist (fixes login race)
+    function callerSchool() {
+      return authEmailDomain();
+    }
+
+    function callerSchoolOk() {
+      return isSignedIn() && isAllowedSchool(callerSchool());
     }
 
     function sameSchool(data) {
-      return isSignedIn() && mySchool() == data.schoolDomain;
+      return callerSchoolOk() && data.schoolDomain == callerSchool();
     }
 
     function validUserCreate(uid) {
       return isOwner(uid)
         && isVerified()
+        && callerSchoolOk()
         && request.resource.data.email == request.auth.token.email
-        && request.resource.data.schoolDomain == authEmailDomain()
-        && isAllowedSchool(request.resource.data.schoolDomain)
+        && request.resource.data.schoolDomain == callerSchool()
         && request.resource.data.aura == 247
         && request.resource.data.postCount == 0
         && request.resource.data.meetCount == 0
@@ -52,6 +57,7 @@ service cloud.firestore {
 
     function postReplyIncrement() {
       return isVerified()
+        && callerSchoolOk()
         && sameSchool(resource.data)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['replyCount'])
         && request.resource.data.replyCount == replyCountOf(resource.data) + 1;
@@ -85,8 +91,9 @@ service cloud.firestore {
         && sameSchool(resource.data)
         && resource.data.expiresAt > request.time;
       allow create: if isVerified()
+        && callerSchoolOk()
         && request.resource.data.authorUid == request.auth.uid
-        && request.resource.data.schoolDomain == mySchool()
+        && request.resource.data.schoolDomain == callerSchool()
         && request.resource.data.score == 0
         && replyCountOf(request.resource.data) == 0
         && request.resource.data.expiresAt > request.time;
@@ -110,17 +117,20 @@ service cloud.firestore {
     }
 
     match /chats/{chatId} {
-      allow get: if isVerified() && (
+      allow get: if isVerified() && callerSchoolOk() && (
         !exists(/databases/$(database)/documents/chats/$(chatId))
         || (request.auth.uid in resource.data.participantUids && sameSchool(resource.data))
       );
       allow list: if isVerified()
+        && callerSchoolOk()
         && request.auth.uid in resource.data.participantUids
         && sameSchool(resource.data);
       allow create: if isVerified()
+        && callerSchoolOk()
         && request.auth.uid in request.resource.data.participantUids
-        && request.resource.data.schoolDomain == mySchool();
+        && request.resource.data.schoolDomain == callerSchool();
       allow update: if isVerified()
+        && callerSchoolOk()
         && request.auth.uid in resource.data.participantUids
         && sameSchool(resource.data);
       allow delete: if false;
@@ -140,6 +150,7 @@ service cloud.firestore {
         && (resource.data.reviewerUid == request.auth.uid
           || resource.data.targetUid == request.auth.uid);
       allow create: if isVerified()
+        && callerSchoolOk()
         && ratingId == request.auth.uid + '_' + request.resource.data.postId
         && request.resource.data.reviewerUid == request.auth.uid
         && request.resource.data.targetUid != request.auth.uid
@@ -153,7 +164,8 @@ service cloud.firestore {
       allow update: if isVerified()
         && resource.data.targetUid == request.auth.uid
         && resource.data.applied == false
-        && request.resource.data.applied == true;
+        && request.resource.data.applied == true
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['applied']);
       allow delete: if false;
     }
   }
