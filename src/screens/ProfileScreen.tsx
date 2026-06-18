@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { Avatar } from '../components/Avatar';
+import { MyPostHistoryCard } from '../components/MyPostHistoryCard';
 import { BDG_DEF } from '../constants';
 import { useApp } from '../context/AppContext';
 import { lvl } from '../utils/helpers';
@@ -12,12 +13,14 @@ export function ProfileScreen() {
     myAura,
     myPosts,
     myMeets,
+    myPostHistory,
     earnedBdg,
     aHist,
     goScreen,
     doLogout,
     showAura,
     uploadProfilePhoto,
+    openSheet,
   } = useApp();
 
   const fileRef = useRef<HTMLInputElement>(null);
@@ -26,6 +29,7 @@ export function ProfileScreen() {
   if (!user) return null;
 
   const badges = BDG_DEF.filter((b) => earnedBdg.has(b.n));
+  const livePosts = myPostHistory.filter((p) => !p.expired && p.mins > 0);
 
   const handlePhotoPick = async (file: File | undefined) => {
     if (!file || !firebaseUid) return;
@@ -100,6 +104,38 @@ export function ProfileScreen() {
             <div className="snum">{myAura}</div>
             <div className="slbl">aura pts</div>
           </div>
+        </div>
+        <div className="psec">
+          <div className="stitle">my posts</div>
+          {myPostHistory.length ? (
+            <>
+              {livePosts.length > 0 && (
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: 'var(--teal)',
+                    fontFamily: 'var(--fh)',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px',
+                    marginBottom: 8,
+                  }}
+                >
+                  {livePosts.length} live now
+                </div>
+              )}
+              {myPostHistory.map((p) => (
+                <MyPostHistoryCard key={p.id} post={p} />
+              ))}
+            </>
+          ) : (
+            <div className="hist-empty">
+              no posts yet — share what&apos;s the move on campus.
+              <button type="button" className="hist-new" onClick={openSheet}>
+                create post
+              </button>
+            </div>
+          )}
         </div>
         <div className="psec">
           <div className="stitle">badges</div>

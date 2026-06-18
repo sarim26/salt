@@ -31,6 +31,7 @@ import {
   setVote,
   subscribeFeed,
   subscribeLeaderboard,
+  subscribeMyPosts,
   subscribeProfile,
 } from '../services/posts';
 import { applyPendingRatings, submitRating, subscribePendingRatings } from '../services/ratings';
@@ -70,6 +71,7 @@ interface AppContextValue {
   myAura: number;
   filter: FilterTab;
   posts: Post[];
+  myPostHistory: Post[];
   chats: Chat[];
   currentChatMessages: ChatMessage[];
   lb: LeaderboardUser[];
@@ -160,6 +162,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [myAura, setMyAura] = useState(247);
   const [filter, setFilter] = useState<FilterTab>('all');
   const [posts, setPosts] = useState<Post[]>([]);
+  const [myPostHistory, setMyPostHistory] = useState<Post[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
   const [currentChatMessages, setCurrentChatMessages] = useState<ChatMessage[]>([]);
   const [lb, setLb] = useState<LeaderboardUser[]>([]);
@@ -202,6 +205,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setProfile(null);
     setPendingVerification(false);
     setPosts([]);
+    setMyPostHistory([]);
     setChats([]);
     setCurrentChatMessages([]);
     setLb([]);
@@ -237,6 +241,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setProfile(null);
     setPosts([]);
+    setMyPostHistory([]);
     setChats([]);
     setCurrentChatMessages([]);
     setLb([]);
@@ -395,6 +400,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         },
         onErr
       ),
+      subscribeMyPosts(uid, setMyPostHistory, onErr),
     ];
 
     return () => unsubs.forEach((u) => u());
@@ -663,6 +669,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     myAura,
     filter,
     posts,
+    myPostHistory,
     chats,
     currentChatMessages,
     lb,

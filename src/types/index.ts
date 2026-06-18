@@ -25,6 +25,8 @@ export interface Post {
   uv: number;
   reps: number;
   met: boolean;
+  expired?: boolean;
+  postedAt?: string;
 }
 
 export interface ChatMessage {

@@ -4,6 +4,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
@@ -18,7 +19,7 @@ import {
 import { db } from '../lib/firebase';
 import type { PostDoc, UserProfile, VoteDoc } from '../types/firestore';
 import type { LeaderboardUser, Post } from '../types';
-import { expiresAtToMins } from '../utils/firestoreMappers';
+import { expiresAtToMins, formatRelativeTime } from '../utils/firestoreMappers';
 import { ensureUserProfile } from './users';
 
 const POST_TTL_MS = 24 * 60 * 60 * 1000;
@@ -89,6 +90,40 @@ export function subscribeFeed(
             score += (v.data() as VoteDoc).value;
           });
           return mapPost(postDoc.id, data, score, vote?.value ?? 0);
+        })
+      );
+      onData(posts);
+    },
+    (err) => onError?.(err)
+  );
+}
+
+export function subscribeMyPosts(
+  uid: string,
+  onData: (posts: Post[]) => void,
+  onError?: (err: Error) => void
+): Unsubscribe {
+  if (!db) return () => {};
+
+  const q = query(
+    collection(db, 'posts'),
+    where('authorUid', '==', uid),
+    orderBy('createdAt', 'desc'),
+    limit(40)
+  );
+
+  return onSnapshot(
+    q,
+    async (snap) => {
+      const posts: Post[] = await Promise.all(
+        snap.docs.map(async (postDoc) => {
+          const data = postDoc.data() as PostDoc;
+          const votesSnap = await getDocs(collection(db!, 'posts', postDoc.id, 'votes'));
+          let score = 0;
+          votesSnap.forEach((v) => {
+            score += (v.data() as VoteDoc).value;
+          });
+          return mapPost(postDoc.id, data, score, 0, true);
         })
       );
       onData(posts);
@@ -187,8 +222,17 @@ export async function setVote(postId: string, uid: string, value: 1 | -1): Promi
   }
 }
 
-function mapPost(id: string, data: PostDoc, score: number, uv: number): Post {
+function mapPost(
+  id: string,
+  data: PostDoc,
+  score: number,
+  uv: number,
+  includeExpired = false
+): Post {
   const expiresMs = data.expiresAt?.toMillis?.() ?? Date.now();
+  const mins = expiresAtToMins(expiresMs);
+  const expired = mins <= 0;
+  const createdMs = data.createdAt?.toMillis?.() ?? Date.now();
   return {
     id,
     authorUid: data.authorUid,
@@ -199,11 +243,13 @@ function mapPost(id: string, data: PostDoc, score: number, uv: number): Post {
     body: data.body,
     tags: data.tags,
     loc: data.loc,
-    mins: expiresAtToMins(expiresMs),
+    mins: includeExpired ? mins : Math.max(0, mins),
     score,
     uv,
     reps: data.replyCount ?? 0,
     met: false,
+    expired: includeExpired ? expired : undefined,
+    postedAt: formatRelativeTime(new Date(createdMs)),
   };
 }
 
