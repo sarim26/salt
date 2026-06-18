@@ -77,12 +77,13 @@ service cloud.firestore {
       allow read: if isSignedIn() && (isOwner(uid) || sameSchool(resource.data));
       allow create: if validUserCreate(uid);
       allow update: if ownerProfileUpdate(uid);
-      allow delete: if false;
+      allow delete: if isOwner(uid) && isVerified();
 
       match /auraEvents/{eventId} {
         allow read: if isOwner(uid);
         allow create: if isOwner(uid) && isVerified();
-        allow update, delete: if false;
+        allow update: if false;
+        allow delete: if isOwner(uid) && isVerified();
       }
     }
 

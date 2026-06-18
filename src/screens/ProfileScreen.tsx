@@ -183,7 +183,112 @@ export function ProfileScreen() {
             )}
           </div>
         </div>
+        <div className="danger-zone">
+          <div className="danger-title">account</div>
+          <DeleteAccountSection email={profile?.email || ''} />
+        </div>
       </div>
     </>
+  );
+}
+
+function DeleteAccountSection({ email }: { email: string }) {
+  const { deleteAccount } = useApp();
+  const [step, setStep] = useState<0 | 1 | 2>(0);
+  const [password, setPassword] = useState('');
+  const [confirmText, setConfirmText] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const reset = () => {
+    setStep(0);
+    setPassword('');
+    setConfirmText('');
+    setError('');
+  };
+
+  const handleDelete = async () => {
+    setError('');
+    if (confirmText.trim().toUpperCase() !== 'DELETE') {
+      setError('type DELETE to confirm');
+      return;
+    }
+    setBusy(true);
+    try {
+      await deleteAccount(password);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'could not delete account');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (step === 0) {
+    return (
+      <button type="button" className="danger-btn" onClick={() => setStep(1)}>
+        delete account
+      </button>
+    );
+  }
+
+  if (step === 1) {
+    return (
+      <div className="danger-panel">
+        <p className="danger-warn">
+          This permanently deletes your SALT account, profile, posts, and aura data.{' '}
+          <strong>This cannot be undone.</strong>
+        </p>
+        <div className="danger-actions">
+          <button type="button" className="danger-cancel" onClick={reset}>
+            cancel
+          </button>
+          <button type="button" className="danger-continue" onClick={() => setStep(2)}>
+            continue
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="danger-panel">
+      <p className="danger-warn">
+        Final step: enter your password and type <strong>DELETE</strong> to remove{' '}
+        {email || 'your account'} from Firebase.
+      </p>
+      <div className="danger-lbl">password</div>
+      <input
+        className="danger-inp"
+        type="password"
+        placeholder="your password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        autoComplete="current-password"
+      />
+      <div className="danger-lbl">type DELETE</div>
+      <input
+        className="danger-inp"
+        type="text"
+        placeholder="DELETE"
+        value={confirmText}
+        onChange={(e) => setConfirmText(e.target.value)}
+        autoComplete="off"
+      />
+      <div className="danger-err">{error}</div>
+      <div className="danger-actions" style={{ marginBottom: 0 }}>
+        <button type="button" className="danger-cancel" onClick={() => setStep(1)} disabled={busy}>
+          back
+        </button>
+        <button
+          type="button"
+          className="danger-final"
+          style={{ flex: 1 }}
+          disabled={busy || !password || confirmText.trim().toUpperCase() !== 'DELETE'}
+          onClick={handleDelete}
+        >
+          {busy ? 'deleting…' : 'delete forever'}
+        </button>
+      </div>
+    </div>
   );
 }

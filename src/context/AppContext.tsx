@@ -17,6 +17,7 @@ import {
   signIn,
   signUp,
   refreshAuthUser,
+  deleteAccount as firebaseDeleteAccount,
 } from '../services/auth';
 import {
   markChatRead,
@@ -106,6 +107,7 @@ interface AppContextValue {
   goScreen: (n: Screen) => void;
   doLogin: () => void;
   doLogout: () => void;
+  deleteAccount: (password: string) => Promise<void>;
   uploadProfilePhoto: (file: File) => Promise<void>;
   resendVerification: () => void;
   checkVerification: () => void;
@@ -324,6 +326,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setLoginPassword('');
     setLoginError('');
   }, [resetSession]);
+
+  const deleteAccount = useCallback(
+    async (password: string) => {
+      if (!isFirebaseConfigured) throw new Error('Firebase not configured');
+      await firebaseDeleteAccount(password);
+      resetSession();
+      setLoginEmail('');
+      setLoginPassword('');
+      setLoginError('');
+    },
+    [resetSession]
+  );
 
   useEffect(() => {
     if (authLoading) return;
@@ -704,6 +718,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     goScreen,
     doLogin,
     doLogout,
+    deleteAccount,
     uploadProfilePhoto,
     resendVerification: handleResendVerification,
     checkVerification,

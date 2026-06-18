@@ -1,5 +1,8 @@
 import {
   createUserWithEmailAndPassword,
+  deleteUser,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
   sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
@@ -8,6 +11,7 @@ import {
 } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { ALLOWED_DOMAINS } from '../constants';
+import { deleteUserFirestoreData } from './account';
 
 function parseAuthError(code: string): string {
   const map: Record<string, string> = {
@@ -18,6 +22,7 @@ function parseAuthError(code: string): string {
     'auth/user-not-found': 'no account — create one first',
     'auth/weak-password': 'password must be at least 6 characters',
     'auth/too-many-requests': 'too many attempts — try again later',
+    'auth/requires-recent-login': 'sign in again, then retry delete',
   };
   return map[code] || 'authentication failed';
 }
@@ -82,6 +87,24 @@ export async function resetPassword(email: string): Promise<void> {
 export async function logOut(): Promise<void> {
   if (!auth) throw new Error('Firebase not configured');
   await signOut(auth);
+}
+
+export async function deleteAccount(password: string): Promise<void> {
+  if (!auth?.currentUser) throw new Error('Not signed in');
+  const user = auth.currentUser;
+  const email = user.email;
+  if (!email) throw new Error('No email on account');
+  if (!password) throw new Error('Enter your password to confirm');
+
+  try {
+    const cred = EmailAuthProvider.credential(email, password);
+    await reauthenticateWithCredential(user, cred);
+    await deleteUserFirestoreData(user.uid);
+    await deleteUser(user);
+  } catch (e) {
+    const code = (e as { code?: string }).code || '';
+    throw new Error(parseAuthError(code));
+  }
 }
 
 export { parseAuthError };
