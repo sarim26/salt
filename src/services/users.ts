@@ -9,6 +9,7 @@ import {
 import { db } from '../lib/firebase';
 import type { UserProfile } from '../types/firestore';
 import { compressImage } from '../utils/image';
+import { STARTING_AURA } from '../constants';
 import {
   displayNameFromEmail,
   emailDomain,
@@ -43,7 +44,7 @@ export async function ensureUserProfile(
     initials: initialsFromName(displayName),
     schoolDomain: domain,
     schoolLabel: SCHOOL_LABELS[domain] || `${domain} · Student`,
-    aura: 247,
+    aura: STARTING_AURA,
     postCount: 0,
     meetCount: 0,
     meetCounts: {},

@@ -51,9 +51,11 @@ import type {
 } from '../types';
 import { firestoreErrorMessage } from '../utils/firestoreErrors';
 import { emailDomain } from '../utils/firestoreMappers';
+import { STARTING_AURA, POST_AURA_REWARD } from '../constants';
 import {
   auraGiven,
   decayNote,
+  fmtAuraDelta,
   lvl,
   sortedPosts,
   tagAff,
@@ -159,7 +161,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [screen, setScreen] = useState<Screen>('login');
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [myAura, setMyAura] = useState(247);
+  const [myAura, setMyAura] = useState(STARTING_AURA);
   const [filter, setFilter] = useState<FilterTab>('all');
   const [posts, setPosts] = useState<Post[]>([]);
   const [myPostHistory, setMyPostHistory] = useState<Post[]>([]);
@@ -215,7 +217,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setChats([]);
     setCurrentChatMessages([]);
     setLb([]);
-    setMyAura(247);
+    setMyAura(STARTING_AURA);
     setMyPosts(0);
     setMyMeets(0);
     setMeetCounts({});
@@ -641,7 +643,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setPostLoc('');
       setSheetOpen(false);
       setFilter('all');
-      toast('POST IS LIVE — GONE IN 24H');
+      toast(`POST IS LIVE — +${POST_AURA_REWARD} AURA · GONE IN 24H`);
     } catch (e) {
       const msg = firestoreErrorMessage(e);
       if (msg) toast(msg);
@@ -654,7 +656,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const targetKey =
         rateTargetUid || posts.find((x) => x.id === ratePostId)?.i;
       if (targetKey) {
-        setRatePointsLabel(`GIVES THEM ${auraGiven(n, targetKey, meetCounts)} AURA PTS`);
+        setRatePointsLabel(`GIVES THEM ${fmtAuraDelta(auraGiven(n, targetKey, meetCounts))} AURA PTS`);
       }
     },
     [posts, ratePostId, rateTargetUid, meetCounts]
@@ -682,7 +684,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       );
       setRateOpen(false);
       toast(
-        `+${result.auraGiven} AURA SENT · +${result.reviewerReward} TO YOU · THEY GET IT WHEN ONLINE`
+        `${fmtAuraDelta(result.auraGiven)} AURA SENT · +${result.reviewerReward} TO YOU · THEY GET IT WHEN ONLINE`
       );
     } catch (e) {
       toast(e instanceof Error ? e.message : 'rating failed');

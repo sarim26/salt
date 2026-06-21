@@ -11,15 +11,17 @@ export const AVC = [
 ];
 
 export const AURA_TBL: Record<number, number> = {
-  1: 10,
-  2: 20,
-  3: 35,
-  4: 50,
-  5: 70,
+  1: 20,
+  2: -10,
+  3: 5,
+  4: 10,
+  5: 20,
 };
 
 export const DECAY = [1, 0.6, 0.3, 0.1];
 
+export const STARTING_AURA = 100;
+export const POST_AURA_REWARD = 20;
 export const REVIEWER_RWD = 15;
 
 export const ALLOWED_DOMAINS = ['uic.edu', 'illinois.edu', 'mit.edu'] as const;

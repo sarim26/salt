@@ -14,7 +14,7 @@ import { REVIEWER_RWD } from '../constants';
 import { db } from '../lib/firebase';
 import type { Post } from '../types';
 import type { UserProfile } from '../types/firestore';
-import { auraGiven } from '../utils/helpers';
+import { auraGiven, fmtAuraDelta } from '../utils/helpers';
 
 export async function submitRating(
   reviewerUid: string,
@@ -122,8 +122,8 @@ export async function applyPendingRatings(targetUid: string): Promise<number> {
     batch.update(ratingDoc.ref, { applied: true });
     batch.set(doc(collection(db!, 'users', targetUid, 'auraEvents')), {
       ico: 'ti-star',
-      txt: `rated by peer — ${r.stars}★ · +${r.auraGiven} aura`,
-      pts: `+${r.auraGiven}`,
+      txt: `rated by peer — ${r.stars}★ · ${fmtAuraDelta(r.auraGiven || 0)} aura`,
+      pts: fmtAuraDelta(r.auraGiven || 0),
       createdAt: serverTimestamp(),
     });
   });

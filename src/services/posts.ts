@@ -18,6 +18,7 @@ import {
 import { db } from '../lib/firebase';
 import type { PostDoc, UserProfile } from '../types/firestore';
 import type { LeaderboardUser, Post } from '../types';
+import { POST_AURA_REWARD } from '../constants';
 import { expiresAtToMins, formatRelativeTime, emailDomain, isAllowedDomain } from '../utils/firestoreMappers';
 import { ensureUserProfile } from './users';
 
@@ -152,6 +153,7 @@ export async function createPost(
 
   const now = Date.now();
   const postCount = (activeProfile.postCount || 0) + 1;
+  const newAura = (activeProfile.aura || 0) + POST_AURA_REWARD;
   const badges = [...(activeProfile.badges || [])];
   const hadFirstPost = badges.includes('first post');
   if (postCount === 1 && !hadFirstPost) {
@@ -173,14 +175,22 @@ export async function createPost(
     expiresAt: Timestamp.fromMillis(now + POST_TTL_MS),
     authorName: activeProfile.displayName,
     authorInitials: activeProfile.initials,
-    authorAura: activeProfile.aura,
+    authorAura: newAura,
     avatarIndex: activeProfile.avatarIndex,
   });
 
   batch.update(doc(db, 'users', uid), {
+    aura: newAura,
     postCount,
     badges,
     updatedAt: serverTimestamp(),
+  });
+
+  batch.set(doc(collection(db, 'users', uid, 'auraEvents')), {
+    ico: 'ti-message',
+    txt: 'posted to campus feed',
+    pts: `+${POST_AURA_REWARD}`,
+    createdAt: serverTimestamp(),
   });
 
   if (postCount === 1 && !hadFirstPost) {

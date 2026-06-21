@@ -36,6 +36,10 @@ export function now(): string {
   return `${d.getHours()}:${d.getMinutes() < 10 ? '0' : ''}${d.getMinutes()}`;
 }
 
+export function fmtAuraDelta(n: number): string {
+  return n >= 0 ? `+${n}` : `${n}`;
+}
+
 export function auraGiven(
   stars: number,
   pid: string,

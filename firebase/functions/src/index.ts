@@ -84,7 +84,7 @@ export const onAuthUserCreate = functions.auth.user().onCreate(async (user) => {
     initials: initialsFromEmail(email),
     schoolDomain: domain,
     schoolLabel: meta.defaultSchoolLabel,
-    aura: 247,
+    aura: 100,
     postCount: 0,
     meetCount: 0,
     meetCounts: {},

@@ -90,7 +90,7 @@ async function upsertProfile(uid) {
     initials: initialsFromName(displayName),
     schoolDomain: domain,
     schoolLabel: SCHOOL_LABELS[domain] || `${domain} · Student`,
-    aura: 247,
+    aura: 100,
     postCount: snap.exists ? snap.data()?.postCount ?? 0 : 0,
     meetCount: snap.exists ? snap.data()?.meetCount ?? 0 : 0,
     meetCounts: snap.exists ? snap.data()?.meetCounts ?? {} : {},

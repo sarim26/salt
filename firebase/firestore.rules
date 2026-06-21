@@ -42,7 +42,7 @@ service cloud.firestore {
         && callerSchoolOk()
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.schoolDomain == callerSchool()
-        && request.resource.data.aura == 247
+        && request.resource.data.aura == 100
         && request.resource.data.postCount == 0
         && request.resource.data.meetCount == 0
         && request.resource.data.referralCount == 0
