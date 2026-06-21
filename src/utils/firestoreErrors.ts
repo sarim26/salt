@@ -9,7 +9,7 @@ export function firestoreErrorMessage(err: unknown): string {
     return 'session expired — sign in again';
   }
   if (code === 'failed-precondition' && msg.includes('index')) {
-    return 'database index missing — contact support';
+    return 'feed index building — wait a minute and reload';
   }
   return msg || 'something went wrong';
 }

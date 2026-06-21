@@ -88,10 +88,13 @@ service cloud.firestore {
     }
 
     match /posts/{postId} {
-      allow read: if isSignedIn()
+      allow get: if isSignedIn()
         && sameSchool(resource.data)
         && (resource.data.expiresAt > request.time
           || resource.data.authorUid == request.auth.uid);
+      allow list: if isSignedIn()
+        && sameSchool(resource.data)
+        && resource.data.expiresAt > request.time;
       allow create: if canUseApp()
         && callerSchoolOk()
         && request.resource.data.authorUid == request.auth.uid

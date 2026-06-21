@@ -65,22 +65,18 @@ export function subscribeFeed(
   const q = query(
     collection(db, 'posts'),
     where('schoolDomain', '==', schoolDomain),
+    where('expiresAt', '>', Timestamp.now()),
+    orderBy('expiresAt'),
     orderBy('createdAt', 'desc')
   );
 
   return onSnapshot(
     q,
     (snap) => {
-      const nowMs = Date.now();
-      const posts: Post[] = snap.docs
-        .filter((postDoc) => {
-          const data = postDoc.data() as PostDoc;
-          return (data.expiresAt?.toMillis?.() ?? 0) > nowMs;
-        })
-        .map((postDoc) => {
-          const data = postDoc.data() as PostDoc;
-          return mapPost(postDoc.id, data, data.score ?? 0, 0);
-        });
+      const posts: Post[] = snap.docs.map((postDoc) => {
+        const data = postDoc.data() as PostDoc;
+        return mapPost(postDoc.id, data, data.score ?? 0, 0);
+      });
       onData(posts);
     },
     (err) => onError?.(err)
