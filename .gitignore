@@ -18,6 +18,8 @@ users.json
 # Firebase
 firebase/functions/lib
 firebase-debug.log
+*-firebase-adminsdk-*.json
+service-account*.json
 
 # Editor directories and files
 .vscode/*

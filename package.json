@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "seed": "node scripts/seedFirestore.mjs",
+    "create:test-user": "node scripts/createTestUser.mjs",
     "firebase": "firebase",
     "deploy:firestore": "firebase deploy --only firestore:rules,firestore:indexes",
     "deploy:functions": "firebase deploy --only functions",
