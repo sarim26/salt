@@ -11,25 +11,11 @@ const VIBES = [
 ];
 
 export function RateOverlay() {
-  const {
-    rateOpen,
-    rateWho,
-    rateDecay,
-    ratePointsLabel,
-    starV,
-    setStarV,
-    submitRate,
-    closeRate,
-  } = useApp();
+  const { rateOpen, rateWho, starV, setStarV, submitRate } = useApp();
   const [vibes, setVibes] = useState<Record<string, boolean>>({});
 
   const toggleVibe = (v: string) => {
     setVibes((prev) => ({ ...prev, [v]: !prev[v] }));
-  };
-
-  const handleClose = () => {
-    setVibes({});
-    closeRate();
   };
 
   const handleSubmit = () => {
@@ -41,9 +27,8 @@ export function RateOverlay() {
     <div className={`rate-ov${rateOpen ? ' open' : ''}`} id="row">
       <div className="rbox">
         <div className="rlbl">meet &amp; eat</div>
-        <div className="rtitle">RATE THEIR AURA</div>
-        <div className="rsub">how was the vibe? your rating gives them aura.</div>
-        <div className="rdecay">{rateDecay}</div>
+        <div className="rtitle">RATE THE MEETUP</div>
+        <div className="rsub">required — how was the vibe?</div>
         <div className="rwho">{rateWho}</div>
         <div className="stars">
           {[1, 2, 3, 4, 5].map((n) => (
@@ -57,7 +42,6 @@ export function RateOverlay() {
             </button>
           ))}
         </div>
-        <div className="spts">{ratePointsLabel}</div>
         <div className="vibes">
           {VIBES.map((v) => (
             <button
@@ -70,13 +54,14 @@ export function RateOverlay() {
             </button>
           ))}
         </div>
-        <div className="vnote">tags are qualitative only — no aura impact</div>
-        <div className="rrew">you always get +15 aura for reviewing</div>
-        <button type="button" className="rgo" onClick={handleSubmit}>
-          GIVE AURA →
-        </button>
-        <button type="button" className="rskip" onClick={handleClose}>
-          skip for now
+        <div className="vnote">tags are optional — vibe check only</div>
+        <button
+          type="button"
+          className="rgo"
+          onClick={handleSubmit}
+          disabled={starV < 1}
+        >
+          SUBMIT RATING →
         </button>
       </div>
     </div>

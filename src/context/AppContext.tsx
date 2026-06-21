@@ -53,9 +53,6 @@ import { firestoreErrorMessage } from '../utils/firestoreErrors';
 import { emailDomain } from '../utils/firestoreMappers';
 import { STARTING_AURA, POST_AURA_REWARD } from '../constants';
 import {
-  auraGiven,
-  decayNote,
-  fmtAuraDelta,
   lvl,
   sortedPosts,
   tagAff,
@@ -89,8 +86,6 @@ interface AppContextValue {
   rateOpen: boolean;
   ratePostId: string | number | null;
   rateWho: string;
-  rateDecay: string;
-  ratePointsLabel: string;
   starV: number;
   loginError: string;
   postText: string;
@@ -126,7 +121,6 @@ interface AppContextValue {
   closeSheet: (targetId?: string) => void;
   doPost: () => void;
   submitRate: () => void;
-  closeRate: () => void;
   getSortedPosts: () => Post[];
   getTagAff: () => Record<string, number>;
   doSearch: (v: string) => void;
@@ -170,16 +164,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [lb, setLb] = useState<LeaderboardUser[]>([]);
   const [myPosts, setMyPosts] = useState(0);
   const [myMeets, setMyMeets] = useState(0);
-  const [meetCounts, setMeetCounts] = useState<Record<string, number>>({});
   const [metPostIds, setMetPostIds] = useState<Set<string | number>>(new Set());
   const [aHist, setAHist] = useState<AuraHistoryItem[]>([]);
   const [earnedBdg, setEarnedBdg] = useState<Set<string>>(new Set(INITIAL_BADGES));
   const [curChat, setCurChat] = useState<string | number | null>(null);
   const [ratePostId, setRatePostId] = useState<string | number | null>(null);
-  const [rateTargetUid, setRateTargetUid] = useState<string | null>(null);
   const [rateWho, setRateWho] = useState('');
-  const [rateDecay, setRateDecay] = useState('');
-  const [ratePointsLabel, setRatePointsLabel] = useState('select stars to see aura given');
   const [starV, setStarV] = useState(0);
   const [toastMsg, setToastMsg] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
@@ -220,7 +210,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setMyAura(STARTING_AURA);
     setMyPosts(0);
     setMyMeets(0);
-    setMeetCounts({});
     setMetPostIds(new Set());
     setAHist([]);
     setEarnedBdg(new Set(INITIAL_BADGES));
@@ -236,7 +225,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setMyAura(p.aura);
     setMyPosts(p.postCount);
     setMyMeets(p.meetCount);
-    setMeetCounts(p.meetCounts || {});
     setEarnedBdg(new Set(p.badges || []));
   }, []);
 
@@ -426,7 +414,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         subscribePendingRatings(
           uid,
           (count) => {
-            if (count > 0) toast(`+${count} NEW RATING${count > 1 ? 'S' : ''} APPLIED TO YOUR AURA`);
+            if (count > 0) toast(`${count} NEW RATING${count > 1 ? 'S' : ''} RECEIVED`);
           },
           onErr
         ),
@@ -531,18 +519,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setMetPostIds((prev) => new Set(prev).add(id));
       setPosts((prev) => prev.map((x) => (x.id === id ? { ...x, met: true } : x)));
 
-      const targetKey = p.authorUid || p.i;
       setTimeout(() => {
         setRatePostId(id);
-        setRateTargetUid(p.authorUid || null);
         setStarV(0);
         setRateWho(p.n.toUpperCase());
-        setRateDecay(decayNote(targetKey, meetCounts));
-        setRatePointsLabel('select stars to see aura given');
         setRateOpen(true);
       }, 400);
     },
-    [posts, meetCounts, firebaseUser, toast]
+    [posts, firebaseUser, toast]
   );
 
   const sharePost = useCallback(
@@ -650,21 +634,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [postText, postTag, postLoc, toast, firebaseUser, profile]);
 
-  const setStarWithFeedback = useCallback(
-    (n: number) => {
-      setStarV(n);
-      const targetKey =
-        rateTargetUid || posts.find((x) => x.id === ratePostId)?.i;
-      if (targetKey) {
-        setRatePointsLabel(`GIVES THEM ${fmtAuraDelta(auraGiven(n, targetKey, meetCounts))} AURA PTS`);
-      }
-    },
-    [posts, ratePostId, rateTargetUid, meetCounts]
-  );
-
   const submitRate = useCallback(async () => {
-    let stars = starV;
-    if (!stars) stars = 3;
+    if (!starV) {
+      toast('PICK A STAR RATING FIRST');
+      return;
+    }
     const p = posts.find((x) => x.id === ratePostId);
     if (!p) return;
 
@@ -675,23 +649,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
-      const result = await submitRating(
+      await submitRating(
         firebaseUser.uid,
         profile,
         String(ratePostId),
         p,
-        stars
+        starV
       );
       setRateOpen(false);
-      toast(
-        `${fmtAuraDelta(result.auraGiven)} AURA SENT · +${result.reviewerReward} TO YOU · THEY GET IT WHEN ONLINE`
-      );
+      toast('RATING SUBMITTED');
     } catch (e) {
       toast(e instanceof Error ? e.message : 'rating failed');
     }
   }, [starV, posts, ratePostId, toast, firebaseUser, profile]);
-
-  const closeRate = useCallback(() => setRateOpen(false), []);
 
   const doSearch = useCallback((v: string) => setSearchQuery(v), []);
 
@@ -738,8 +708,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     rateOpen,
     ratePostId,
     rateWho,
-    rateDecay,
-    ratePointsLabel,
     starV,
     loginError,
     postText,
@@ -754,7 +722,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPostText,
     setPostTag,
     setPostLoc,
-    setStarV: setStarWithFeedback,
+    setStarV,
     goScreen,
     doLogin,
     doLogout,
@@ -775,7 +743,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     closeSheet,
     doPost,
     submitRate,
-    closeRate,
     getSortedPosts,
     getTagAff,
     doSearch,

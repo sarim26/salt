@@ -115,7 +115,7 @@ body{background-color:var(--bg);background-image:linear-gradient(var(--grid) 1px
 .shloc::placeholder{color:var(--dim)}
 .shsub{width:100%;margin-top:13px;background:var(--red);color:white;border:none;padding:13px;font-family:var(--fh);font-size:16px;font-weight:900;cursor:pointer;text-transform:uppercase;letter-spacing:2px}
 .shnote{font-size:10px;color:var(--muted);text-align:center;margin-top:7px}
-.rate-ov{display:none;position:absolute;inset:0;background:rgba(5,5,5,0.97);z-index:60;align-items:center;justify-content:center;padding:20px}
+.rate-ov{display:none;position:absolute;inset:0;background:rgba(5,5,5,0.97);z-index:110;align-items:center;justify-content:center;padding:20px}
 .rate-ov.open{display:flex;animation:fadeIn .2s ease}
 .rbox{background:var(--card);width:100%;max-width:340px;border:2px solid var(--teal);padding:24px 20px 20px;text-align:center}
 .rlbl{font-family:var(--fh);font-size:11px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:2px;margin-bottom:4px}
@@ -133,6 +133,7 @@ body{background-color:var(--bg);background-image:linear-gradient(var(--grid) 1px
 .vnote{font-size:10px;color:var(--dim);margin-bottom:10px}
 .rrew{font-size:11px;color:var(--teal);margin-bottom:12px;font-family:var(--fh);font-weight:700;text-transform:uppercase;letter-spacing:0.5px}
 .rgo{width:100%;background:var(--red);color:white;border:none;padding:12px;font-family:var(--fh);font-size:16px;font-weight:900;cursor:pointer;text-transform:uppercase;letter-spacing:2px}
+.rgo:disabled{opacity:0.45;cursor:not-allowed}
 .rskip{font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer;margin-top:9px;display:block;width:100%;font-family:var(--fm)}
 .profile-hero{background:var(--card);border-bottom:2px solid var(--red);padding:24px 20px 20px;display:flex;gap:16px;align-items:flex-start}
 .pavi-wrap{position:relative;flex-shrink:0}

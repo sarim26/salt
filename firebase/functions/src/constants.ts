@@ -27,7 +27,6 @@ export const DECAY = [1, 0.6, 0.3, 0.1];
 
 export const STARTING_AURA = 100;
 export const POST_AURA_REWARD = 20;
-export const REVIEWER_RWD = 15;
 
 export function auraGiven(stars: number, meetCount: number): number {
   const b = AURA_TBL[stars] || 0;

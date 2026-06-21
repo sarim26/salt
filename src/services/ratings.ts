@@ -10,11 +10,10 @@ import {
   writeBatch,
   type Unsubscribe,
 } from 'firebase/firestore';
-import { REVIEWER_RWD } from '../constants';
 import { db } from '../lib/firebase';
 import type { Post } from '../types';
 import type { UserProfile } from '../types/firestore';
-import { auraGiven, fmtAuraDelta } from '../utils/helpers';
+import { auraGiven } from '../utils/helpers';
 
 export async function submitRating(
   reviewerUid: string,
@@ -22,7 +21,7 @@ export async function submitRating(
   postId: string,
   post: Post,
   stars: number
-): Promise<{ auraGiven: number; reviewerReward: number }> {
+): Promise<{ auraGiven: number }> {
   if (!db) throw new Error('Firebase not configured');
   if (!post.authorUid) throw new Error('Invalid post');
 
@@ -63,14 +62,13 @@ export async function submitRating(
     postId,
     stars,
     auraGiven: given,
-    reviewerReward: REVIEWER_RWD,
+    reviewerReward: 0,
     schoolDomain: profile.schoolDomain,
     applied: false,
     createdAt: serverTimestamp(),
   });
 
   batch.update(doc(db, 'users', reviewerUid), {
-    aura: (profile.aura || 0) + REVIEWER_RWD,
     meetCount: reviewerMeetCount,
     meetCounts,
     badges,
@@ -79,8 +77,8 @@ export async function submitRating(
 
   batch.set(doc(collection(db, 'users', reviewerUid, 'auraEvents')), {
     ico: 'ti-star',
-    txt: `rated ${post.n} — ${stars}★ · gave ${given} aura`,
-    pts: `+${REVIEWER_RWD}`,
+    txt: `rated ${post.n} — ${stars}★`,
+    pts: `${stars}★`,
     createdAt: serverTimestamp(),
   });
 
@@ -95,7 +93,7 @@ export async function submitRating(
 
   await batch.commit();
 
-  return { auraGiven: given, reviewerReward: REVIEWER_RWD };
+  return { auraGiven: given };
 }
 
 export async function applyPendingRatings(targetUid: string): Promise<number> {
@@ -122,8 +120,8 @@ export async function applyPendingRatings(targetUid: string): Promise<number> {
     batch.update(ratingDoc.ref, { applied: true });
     batch.set(doc(collection(db!, 'users', targetUid, 'auraEvents')), {
       ico: 'ti-star',
-      txt: `rated by peer — ${r.stars}★ · ${fmtAuraDelta(r.auraGiven || 0)} aura`,
-      pts: fmtAuraDelta(r.auraGiven || 0),
+      txt: `rated by peer — ${r.stars}★`,
+      pts: `${r.stars}★`,
       createdAt: serverTimestamp(),
     });
   });

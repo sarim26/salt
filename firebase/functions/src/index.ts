@@ -6,7 +6,6 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import * as functions from 'firebase-functions/v1';
 import {
-  REVIEWER_RWD,
   auraGiven,
   displayNameFromEmail,
   emailDomain,
@@ -179,7 +178,7 @@ export const submitRating = onCall(async (request) => {
       postId,
       stars,
       auraGiven: auraPts,
-      reviewerReward: REVIEWER_RWD,
+      reviewerReward: 0,
       schoolDomain,
       createdAt: now,
     });
@@ -190,7 +189,6 @@ export const submitRating = onCall(async (request) => {
     });
 
     tx.update(reviewerRef, {
-      aura: (reviewerData.aura || 0) + REVIEWER_RWD,
       meetCount: reviewerMeetCount,
       meetCounts: reviewerMeetCounts,
       badges: reviewerBadges,
@@ -207,7 +205,7 @@ export const submitRating = onCall(async (request) => {
     tx.set(db.collection(`users/${reviewerUid}/auraEvents`).doc(), {
       ico: 'ti-star',
       txt: `rated ${post.authorName} — ${stars}★ · gave ${auraPts} aura`,
-      pts: `+${REVIEWER_RWD}`,
+      pts: auraPts >= 0 ? `+${auraPts}` : `${auraPts}`,
       createdAt: now,
     });
 
@@ -223,7 +221,7 @@ export const submitRating = onCall(async (request) => {
     return auraPts;
   });
 
-  return { auraGiven: given, reviewerReward: REVIEWER_RWD };
+  return { auraGiven: given };
 });
 
 export const expirePosts = onSchedule('every 60 minutes', async () => {
