@@ -1,15 +1,23 @@
-export function firestoreErrorMessage(err: unknown): string {
+export function isSilentFirestoreError(err: unknown): boolean {
   const code = (err as { code?: string }).code || '';
   const msg = err instanceof Error ? err.message : String(err);
 
-  if (code === 'permission-denied' || msg.includes('insufficient permissions')) {
-    return 'permission denied — sign out and sign in again; disable ad blockers for this site';
-  }
-  if (code === 'unauthenticated') {
-    return 'session expired — sign in again';
-  }
+  return (
+    code === 'permission-denied' ||
+    code === 'unauthenticated' ||
+    msg.includes('insufficient permissions') ||
+    msg.toLowerCase().includes('permission denied')
+  );
+}
+
+export function firestoreErrorMessage(err: unknown): string | null {
+  if (isSilentFirestoreError(err)) return null;
+
+  const code = (err as { code?: string }).code || '';
+  const msg = err instanceof Error ? err.message : String(err);
+
   if (code === 'failed-precondition' && msg.includes('index')) {
-    return 'feed index building — wait a minute and reload';
+    return 'feed loading — try again in a moment';
   }
   return msg || 'something went wrong';
 }

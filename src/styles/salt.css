@@ -10,7 +10,8 @@ body{background-color:var(--bg);background-image:linear-gradient(var(--grid) 1px
 .scroll{flex:1;overflow-y:auto;scrollbar-width:none;padding-bottom:calc(88px + env(safe-area-inset-bottom, 0px))}
 .scroll::-webkit-scrollbar{display:none}
 #screen-login{justify-content:center;align-items:center;padding:32px 24px}
-.login-logo{font-family:var(--fh);font-size:52px;font-weight:900;color:var(--red);text-transform:uppercase;letter-spacing:-1px;margin-bottom:4px}
+.login-logo{display:flex;justify-content:center;margin-bottom:4px}
+.login-logo img{height:72px;width:auto;display:block}
 .login-tag{font-size:11px;color:var(--muted);text-align:center;margin-bottom:36px;letter-spacing:1px;text-transform:uppercase}
 .login-box{width:100%;background:var(--card);border:1px solid var(--teal);padding:24px 20px}
 .login-lbl{font-family:var(--fh);font-size:11px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px}
@@ -23,7 +24,8 @@ body{background-color:var(--bg);background-image:linear-gradient(var(--grid) 1px
 .auth-toggle{font-size:11px;font-weight:700;padding:5px 16px;border:1px solid var(--border2);color:var(--muted);background:transparent;cursor:pointer;font-family:var(--fh);text-transform:uppercase;letter-spacing:0.5px;transition:all .15s}
 .auth-toggle.on,.auth-toggle:hover{border-color:var(--teal);color:var(--teal)}
 .hdr{padding:13px 16px 10px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;border-bottom:1px solid var(--border)}
-.logo{font-family:var(--fh);font-size:27px;font-weight:900;color:var(--red);text-transform:uppercase;display:flex;align-items:center;gap:4px;cursor:pointer}
+.logo{display:flex;align-items:center;cursor:pointer}
+.logo img{height:32px;width:auto;display:block}
 .hdr-right{display:flex;align-items:center;gap:10px}
 .aura-pill{display:flex;align-items:center;gap:5px;border:1px solid var(--teal);padding:4px 10px;cursor:pointer;transition:background .15s}
 .aura-pill:hover{background:rgba(61,168,130,0.08)}

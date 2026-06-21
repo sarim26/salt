@@ -1,4 +1,5 @@
 import { useApp } from '../context/AppContext';
+import { Logo } from '../components/Logo';
 import { isFirebaseConfigured } from '../lib/firebase';
 
 export function LoginScreen() {
@@ -18,7 +19,7 @@ export function LoginScreen() {
 
   return (
     <>
-      <div className="login-logo">SALT 🧂</div>
+      <Logo variant="login" />
       <div className="login-tag">meet. eat. befriend.</div>
       <div className="login-box">
         {firebaseReady ? (

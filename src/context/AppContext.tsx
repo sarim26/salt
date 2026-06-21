@@ -335,6 +335,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       },
       (err) => {
         const msg = firestoreErrorMessage(err);
+        if (!msg) return;
         setBootstrapError(msg);
         toast(msg);
       }
@@ -345,7 +346,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!firebaseUser || user) return;
     const timer = setTimeout(() => {
       setBootstrapError(
-        'still setting up your profile — check connection, disable ad blockers, or sign out and retry'
+        'still setting up your profile — try signing out and back in'
       );
     }, 15000);
     return () => clearTimeout(timer);
@@ -395,7 +396,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (sessionGenRef.current !== gen) return;
 
       setFirestoreReady(true);
-      const onErr = (err: Error) => toast(firestoreErrorMessage(err));
+      const onErr = (err: Error) => {
+        const msg = firestoreErrorMessage(err);
+        if (msg) toast(msg);
+      };
 
       feedUnsubsRef.current = [
         subscribeFeed(
@@ -441,7 +445,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!profile || !firebaseUser?.uid) return;
     applyPendingRatings(firebaseUser.uid).catch((e) => {
-      toast(firestoreErrorMessage(e));
+      const msg = firestoreErrorMessage(e);
+      if (msg) toast(msg);
     });
   }, [profile, firebaseUser?.uid, toast]);
 
@@ -454,7 +459,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       String(curChat),
       firebaseUser.uid,
       setCurrentChatMessages,
-      (err) => toast(firestoreErrorMessage(err))
+      (err) => {
+        const msg = firestoreErrorMessage(err);
+        if (msg) toast(msg);
+      }
     );
   }, [firebaseUser, curChat, toast]);
 
@@ -571,7 +579,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setCurChat(chatId);
         setScreen('chat-detail');
       } catch (e) {
-        toast(e instanceof Error ? e.message : 'could not open chat');
+        const msg = firestoreErrorMessage(e);
+        if (msg) toast(msg);
       }
     },
     [posts, firebaseUser, profile, toast]
@@ -634,7 +643,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setFilter('all');
       toast('POST IS LIVE — GONE IN 24H');
     } catch (e) {
-      toast(firestoreErrorMessage(e));
+      const msg = firestoreErrorMessage(e);
+      if (msg) toast(msg);
     }
   }, [postText, postTag, postLoc, toast, firebaseUser, profile]);
 

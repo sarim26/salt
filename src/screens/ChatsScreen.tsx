@@ -1,4 +1,5 @@
 import { AVC } from '../constants';
+import { Logo } from '../components/Logo';
 import { useApp } from '../context/AppContext';
 
 export function ChatsScreen() {
@@ -7,7 +8,7 @@ export function ChatsScreen() {
   return (
     <>
       <div className="hdr">
-        <div className="logo">SALT 🧂</div>
+        <Logo />
         <div className="hdr-right">
           <span
             style={{

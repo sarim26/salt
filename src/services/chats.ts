@@ -137,11 +137,7 @@ export async function openChatWithUser(
       await updateDoc(ref, { sourcePostId });
     }
   } catch (e) {
-    const code = (e as { code?: string }).code;
-    if (code === 'permission-denied') {
-      throw new Error('Could not open chat — deploy latest Firestore rules (npm run deploy:firestore)');
-    }
-    throw e;
+    throw e instanceof Error ? e : new Error('could not open chat');
   }
 
   return id;

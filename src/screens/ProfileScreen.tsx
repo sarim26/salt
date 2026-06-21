@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { Avatar } from '../components/Avatar';
+import { Logo } from '../components/Logo';
 import { MyPostHistoryCard } from '../components/MyPostHistoryCard';
 import { BDG_DEF } from '../constants';
 import { useApp } from '../context/AppContext';
@@ -45,9 +46,7 @@ export function ProfileScreen() {
   return (
     <>
       <div className="hdr">
-        <div className="logo" onClick={() => goScreen('feed')} role="button" tabIndex={0}>
-          SALT 🧂
-        </div>
+        <Logo onClick={() => goScreen('feed')} />
         <div className="hdr-right">
           <button type="button" className="logout-btn" onClick={doLogout}>
             LOGOUT

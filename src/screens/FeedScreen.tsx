@@ -1,4 +1,5 @@
 import { Avatar } from '../components/Avatar';
+import { Logo } from '../components/Logo';
 import { PostCard } from '../components/PostCard';
 import { FILTER_TABS } from '../constants';
 import { useApp } from '../context/AppContext';
@@ -42,7 +43,7 @@ export function FeedScreen() {
   return (
     <>
       <div className="hdr">
-        <div className="logo">SALT 🧂</div>
+        <Logo />
         <div className="hdr-right">
           <div className="aura-pill" onClick={showAura} role="button" tabIndex={0}>
             <i className="ti ti-sparkles" style={{ fontSize: 13, color: '#3DA882' }} />

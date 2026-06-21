@@ -1,4 +1,5 @@
 import { LeaderboardCard } from '../components/LeaderboardCard';
+import { Logo } from '../components/Logo';
 import { PostCard } from '../components/PostCard';
 import { useApp } from '../context/AppContext';
 function SectionDivider({ label }: { label: string }) {
@@ -94,7 +95,7 @@ export function ExploreScreen() {
   return (
     <>
       <div className="hdr">
-        <div className="logo">SALT 🧂</div>
+        <Logo />
         <div className="hdr-right">
           <div className="aura-pill" onClick={showAura} role="button" tabIndex={0}>
             <i className="ti ti-sparkles" style={{ fontSize: 13, color: '#3DA882' }} />
