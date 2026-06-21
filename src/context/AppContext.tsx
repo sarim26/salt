@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { UNIVERSITIES } from '../data/universities';
 import { useAuthState } from '../hooks/useAuthState';
-import { isFirebaseConfigured } from '../lib/firebase';
+import { isFirebaseConfigured, auth } from '../lib/firebase';
 import {
   logOut as firebaseLogOut,
   resetPassword,
@@ -193,6 +193,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [firestoreReady, setFirestoreReady] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const authWasSignedIn = useRef(false);
+  const liveSessionUid = useRef<string | null>(null);
+  const feedUnsubsRef = useRef<Array<() => void>>([]);
+  const sessionGenRef = useRef(0);
   const metPostIdsRef = useRef(metPostIds);
   metPostIdsRef.current = metPostIds;
 
@@ -297,11 +300,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Only clear app state on explicit sign-out — not during initial auth restore on reload
-    if (authWasSignedIn.current) {
+    if (!authWasSignedIn.current) return;
+
+    // Confirm sign-out — ignore transient null during token refresh / reload.
+    void auth?.authStateReady().then(() => {
+      if (auth?.currentUser) return;
       authWasSignedIn.current = false;
+      liveSessionUid.current = null;
+      feedUnsubsRef.current.forEach((u) => u());
+      feedUnsubsRef.current = [];
       resetSession();
-    }
+    });
   }, [firebaseUser, authLoading, resetSession]);
 
   useEffect(() => {
@@ -344,63 +353,81 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!firebaseUser || !profile) {
-      setFirestoreReady(false);
+      if (!firebaseUser) {
+        setFirestoreReady(false);
+        liveSessionUid.current = null;
+        feedUnsubsRef.current.forEach((u) => u());
+        feedUnsubsRef.current = [];
+      }
       return;
     }
 
-    let cancelled = false;
-    setFirestoreReady(false);
-
-    awaitAuthForFirestore()
-      .then(() => {
-        if (!cancelled) setFirestoreReady(true);
-      })
-      .catch(() => {
-        if (!cancelled) setFirestoreReady(true);
-      });
-
-    return () => {
-      cancelled = true;
-      setFirestoreReady(false);
-    };
-  }, [firebaseUser?.uid, profile?.email, profile?.schoolDomain]);
-
-  useEffect(() => {
-    if (!firestoreReady || !firebaseUser || !profile) return;
-
     const uid = firebaseUser.uid;
     const domain = emailDomain(firebaseUser.email || profile.email) || profile.schoolDomain;
-    const onErr = (err: Error) => toast(firestoreErrorMessage(err));
+    if (!domain) return;
 
-    const unsubs = [
-      subscribeFeed(
-        domain,
-        uid,
-        (feedPosts) => {
-          setPosts(
-            feedPosts.map((p) => ({
-              ...p,
-              met: metPostIdsRef.current.has(p.id),
-            }))
-          );
-        },
-        onErr
-      ),
-      subscribeLeaderboard(domain, setLb),
-      subscribeChats(uid, domain, setChats, onErr),
-      subscribeAuraEvents(uid, setAHist, onErr),
-      subscribePendingRatings(
-        uid,
-        (count) => {
-          if (count > 0) toast(`+${count} NEW RATING${count > 1 ? 'S' : ''} APPLIED TO YOUR AURA`);
-        },
-        onErr
-      ),
-      subscribeMyPosts(uid, setMyPostHistory, onErr),
-    ];
+    if (liveSessionUid.current && liveSessionUid.current !== uid) {
+      setPosts([]);
+      setMyPostHistory([]);
+      setChats([]);
+      setLb([]);
+    }
 
-    return () => unsubs.forEach((u) => u());
-  }, [firestoreReady, firebaseUser?.uid, profile?.schoolDomain, profile?.email, toast]);
+    // Keep one live listener set per uid — avoid tearing down feed on token/profile refresh.
+    if (liveSessionUid.current === uid && feedUnsubsRef.current.length > 0) {
+      setFirestoreReady(true);
+      return;
+    }
+
+    liveSessionUid.current = uid;
+    feedUnsubsRef.current.forEach((u) => u());
+    feedUnsubsRef.current = [];
+
+    const gen = ++sessionGenRef.current;
+    setFirestoreReady(false);
+
+    void (async () => {
+      try {
+        await awaitAuthForFirestore();
+      } catch {
+        /* still attempt listeners */
+      }
+      if (sessionGenRef.current !== gen) return;
+
+      setFirestoreReady(true);
+      const onErr = (err: Error) => toast(firestoreErrorMessage(err));
+
+      feedUnsubsRef.current = [
+        subscribeFeed(
+          domain,
+          uid,
+          (feedPosts) => {
+            setPosts((prev) => {
+              const next = feedPosts.map((p) => ({
+                ...p,
+                met: metPostIdsRef.current.has(p.id),
+              }));
+              // Ignore transient empty snapshots while reconnecting.
+              if (next.length === 0 && prev.length > 0) return prev;
+              return next;
+            });
+          },
+          onErr
+        ),
+        subscribeLeaderboard(domain, setLb),
+        subscribeChats(uid, domain, setChats, onErr),
+        subscribeAuraEvents(uid, setAHist, onErr),
+        subscribePendingRatings(
+          uid,
+          (count) => {
+            if (count > 0) toast(`+${count} NEW RATING${count > 1 ? 'S' : ''} APPLIED TO YOUR AURA`);
+          },
+          onErr
+        ),
+        subscribeMyPosts(uid, setMyPostHistory, onErr),
+      ];
+    })();
+  }, [firebaseUser?.uid, profile?.schoolDomain, profile?.email, toast]);
 
   useEffect(() => {
     setPosts((prev) =>
