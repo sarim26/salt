@@ -3,7 +3,6 @@ import {
   deleteDoc,
   doc,
   getDoc,
-  getDocs,
   limit,
   onSnapshot,
   orderBy,
@@ -17,9 +16,9 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import type { PostDoc, UserProfile, VoteDoc } from '../types/firestore';
+import type { PostDoc, UserProfile } from '../types/firestore';
 import type { LeaderboardUser, Post } from '../types';
-import { expiresAtToMins, formatRelativeTime } from '../utils/firestoreMappers';
+import { expiresAtToMins, formatRelativeTime, emailDomain, isAllowedDomain } from '../utils/firestoreMappers';
 import { ensureUserProfile } from './users';
 
 const POST_TTL_MS = 24 * 60 * 60 * 1000;
@@ -57,7 +56,7 @@ export function subscribeProfile(
 
 export function subscribeFeed(
   schoolDomain: string,
-  uid: string,
+  _uid: string,
   onData: (posts: Post[]) => void,
   onError?: (err: Error) => void
 ): Unsubscribe {
@@ -71,27 +70,17 @@ export function subscribeFeed(
 
   return onSnapshot(
     q,
-    async (snap) => {
+    (snap) => {
       const nowMs = Date.now();
-      const docs = snap.docs.filter((postDoc) => {
-        const data = postDoc.data() as PostDoc;
-        return (data.expiresAt?.toMillis?.() ?? 0) > nowMs;
-      });
-      const posts: Post[] = await Promise.all(
-        docs.map(async (postDoc) => {
+      const posts: Post[] = snap.docs
+        .filter((postDoc) => {
           const data = postDoc.data() as PostDoc;
-          const voteSnap = await getDoc(doc(db!, 'posts', postDoc.id, 'votes', uid));
-          const vote = voteSnap.exists() ? (voteSnap.data() as VoteDoc) : null;
-          const votesSnap = await getDocs(
-            collection(db!, 'posts', postDoc.id, 'votes')
-          );
-          let score = 0;
-          votesSnap.forEach((v) => {
-            score += (v.data() as VoteDoc).value;
-          });
-          return mapPost(postDoc.id, data, score, vote?.value ?? 0);
+          return (data.expiresAt?.toMillis?.() ?? 0) > nowMs;
         })
-      );
+        .map((postDoc) => {
+          const data = postDoc.data() as PostDoc;
+          return mapPost(postDoc.id, data, data.score ?? 0, 0);
+        });
       onData(posts);
     },
     (err) => onError?.(err)
@@ -114,18 +103,11 @@ export function subscribeMyPosts(
 
   return onSnapshot(
     q,
-    async (snap) => {
-      const posts: Post[] = await Promise.all(
-        snap.docs.map(async (postDoc) => {
-          const data = postDoc.data() as PostDoc;
-          const votesSnap = await getDocs(collection(db!, 'posts', postDoc.id, 'votes'));
-          let score = 0;
-          votesSnap.forEach((v) => {
-            score += (v.data() as VoteDoc).value;
-          });
-          return mapPost(postDoc.id, data, score, 0, true);
-        })
-      );
+    (snap) => {
+      const posts: Post[] = snap.docs.map((postDoc) => {
+        const data = postDoc.data() as PostDoc;
+        return mapPost(postDoc.id, data, data.score ?? 0, 0, true);
+      });
       onData(posts);
     },
     (err) => onError?.(err)
@@ -165,9 +147,16 @@ export async function createPost(
   loc: string | null
 ): Promise<string> {
   if (!db) throw new Error('Firebase not configured');
+
+  const activeProfile = (await ensureUserProfile(uid, profile.email)) ?? profile;
+  const schoolDomain = emailDomain(activeProfile.email);
+  if (!schoolDomain || !isAllowedDomain(schoolDomain)) {
+    throw new Error('campus email required to post');
+  }
+
   const now = Date.now();
-  const postCount = (profile.postCount || 0) + 1;
-  const badges = [...(profile.badges || [])];
+  const postCount = (activeProfile.postCount || 0) + 1;
+  const badges = [...(activeProfile.badges || [])];
   const hadFirstPost = badges.includes('first post');
   if (postCount === 1 && !hadFirstPost) {
     badges.push('first post');
@@ -178,7 +167,7 @@ export async function createPost(
 
   batch.set(postRef, {
     authorUid: uid,
-    schoolDomain: profile.schoolDomain,
+    schoolDomain,
     body,
     tags,
     loc,
@@ -186,10 +175,10 @@ export async function createPost(
     replyCount: 0,
     createdAt: serverTimestamp(),
     expiresAt: Timestamp.fromMillis(now + POST_TTL_MS),
-    authorName: profile.displayName,
-    authorInitials: profile.initials,
-    authorAura: profile.aura,
-    avatarIndex: profile.avatarIndex,
+    authorName: activeProfile.displayName,
+    authorInitials: activeProfile.initials,
+    authorAura: activeProfile.aura,
+    avatarIndex: activeProfile.avatarIndex,
   });
 
   batch.update(doc(db, 'users', uid), {

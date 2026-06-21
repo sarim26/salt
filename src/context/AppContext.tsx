@@ -49,6 +49,7 @@ import type {
   User,
 } from '../types';
 import { firestoreErrorMessage } from '../utils/firestoreErrors';
+import { emailDomain } from '../utils/firestoreMappers';
 import {
   auraGiven,
   decayNote,
@@ -61,6 +62,7 @@ interface AppContextValue {
   screen: Screen;
   appMode: AppMode;
   authLoading: boolean;
+  bootstrapError: string;
   authMode: 'signin' | 'signup';
   user: User | null;
   profile: UserProfile | null;
@@ -151,6 +153,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const [appMode, setAppMode] = useState<AppMode>(null);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [bootstrapError, setBootstrapError] = useState('');
   const [screen, setScreen] = useState<Screen>('login');
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -212,6 +215,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setEarnedBdg(new Set(INITIAL_BADGES));
     setCurChat(null);
     setFilter('all');
+    setBootstrapError('');
     setScreen('login');
   }, []);
 
@@ -294,6 +298,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!firebaseUser) return;
 
     const uid = firebaseUser.uid;
+    setBootstrapError('');
     return subscribeProfile(
       uid,
       firebaseUser.email,
@@ -302,24 +307,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
           applyProfile(p);
           setAppMode('live');
           setScreen((s) => (s === 'login' ? 'feed' : s));
+          setBootstrapError('');
         }
       },
-      (err) => toast(firestoreErrorMessage(err))
+      (err) => {
+        const msg = firestoreErrorMessage(err);
+        setBootstrapError(msg);
+        toast(msg);
+      }
     );
   }, [firebaseUser, applyProfile, toast]);
 
   useEffect(() => {
-    if (!profile || !firebaseUser?.uid) return;
-    applyPendingRatings(firebaseUser.uid).catch((e) => {
-      toast(firestoreErrorMessage(e));
-    });
-  }, [profile, firebaseUser?.uid, toast]);
+    if (!firebaseUser || user) return;
+    const timer = setTimeout(() => {
+      setBootstrapError(
+        'still setting up your profile — check connection, disable ad blockers, or sign out and retry'
+      );
+    }, 15000);
+    return () => clearTimeout(timer);
+  }, [firebaseUser, user]);
 
   useEffect(() => {
     if (!firebaseUser || !profile) return;
 
     const uid = firebaseUser.uid;
-    const domain = profile.schoolDomain;
+    const domain = emailDomain(firebaseUser.email || profile.email) || profile.schoolDomain;
     const onErr = (err: Error) => toast(firestoreErrorMessage(err));
 
     const unsubs = [
@@ -351,6 +364,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     return () => unsubs.forEach((u) => u());
   }, [firebaseUser, profile, metPostIds, toast]);
+
+  useEffect(() => {
+    if (!profile || !firebaseUser?.uid) return;
+    applyPendingRatings(firebaseUser.uid).catch((e) => {
+      toast(firestoreErrorMessage(e));
+    });
+  }, [profile, firebaseUser?.uid, toast]);
 
   useEffect(() => {
     if (!firebaseUser || !curChat) {
@@ -523,10 +543,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const doPost = useCallback(async () => {
     const txt = postText.trim();
-    if (!txt || !user) return;
+    if (!txt) {
+      toast('WRITE SOMETHING FIRST');
+      return;
+    }
+    if (!firebaseUser || !profile) {
+      toast('STILL LOADING — TRY AGAIN');
+      return;
+    }
     const loc = postLoc.trim();
 
-    if (!firebaseUser || !profile) return;
     try {
       await createPost(firebaseUser.uid, profile, txt, [postTag], loc || null);
       setPostText('');
@@ -535,9 +561,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setFilter('all');
       toast('POST IS LIVE — GONE IN 24H');
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'post failed');
+      toast(firestoreErrorMessage(e));
     }
-  }, [postText, postTag, postLoc, user, toast, firebaseUser, profile]);
+  }, [postText, postTag, postLoc, toast, firebaseUser, profile]);
 
   const setStarWithFeedback = useCallback(
     (n: number) => {
@@ -603,6 +629,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     screen,
     appMode,
     authLoading,
+    bootstrapError,
     authMode,
     user,
     profile,

@@ -29,7 +29,7 @@ const SCREEN_CONTENT: Record<Screen, React.ReactNode> = {
 };
 
 function AppShell() {
-  const { screen, authLoading, user, firebaseUid } = useApp();
+  const { screen, authLoading, user, firebaseUid, bootstrapError, doLogout } = useApp();
 
   const bootstrapping = authLoading || (Boolean(firebaseUid) && !user);
 
@@ -38,6 +38,31 @@ function AppShell() {
       <div id="app">
         <div className="screen active" id="screen-login" style={{ justifyContent: 'center' }}>
           <div className="login-tag">loading...</div>
+          {bootstrapError && (
+            <p
+              style={{
+                fontSize: 11,
+                color: 'var(--red)',
+                maxWidth: 280,
+                textAlign: 'center',
+                marginTop: 12,
+                lineHeight: 1.5,
+                fontFamily: 'var(--fm)',
+              }}
+            >
+              {bootstrapError}
+            </p>
+          )}
+          {firebaseUid && (
+            <button
+              type="button"
+              className="rskip"
+              style={{ marginTop: 16 }}
+              onClick={doLogout}
+            >
+              sign out
+            </button>
+          )}
         </div>
       </div>
     );
