@@ -189,6 +189,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [postLoc, setPostLoc] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const authWasSignedIn = useRef(false);
+  const metPostIdsRef = useRef(metPostIds);
+  metPostIdsRef.current = metPostIds;
 
   const toast = useCallback((m: string) => {
     setToastMsg(m);
@@ -285,10 +288,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!firebaseUser && (profile || appMode === 'live')) {
+
+    if (firebaseUser) {
+      authWasSignedIn.current = true;
+      return;
+    }
+
+    // Only clear app state on explicit sign-out — not during initial auth restore on reload
+    if (authWasSignedIn.current) {
+      authWasSignedIn.current = false;
       resetSession();
     }
-  }, [firebaseUser, authLoading, profile, appMode, resetSession]);
+  }, [firebaseUser, authLoading, resetSession]);
 
   useEffect(() => {
     if (profile) setAppMode('live');
@@ -343,7 +354,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setPosts(
             feedPosts.map((p) => ({
               ...p,
-              met: metPostIds.has(p.id),
+              met: metPostIdsRef.current.has(p.id),
             }))
           );
         },
@@ -363,7 +374,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ];
 
     return () => unsubs.forEach((u) => u());
-  }, [firebaseUser, profile, metPostIds, toast]);
+  }, [firebaseUser, profile, toast]);
+
+  useEffect(() => {
+    setPosts((prev) =>
+      prev.map((p) => ({
+        ...p,
+        met: metPostIds.has(p.id),
+      }))
+    );
+  }, [metPostIds]);
 
   useEffect(() => {
     if (!profile || !firebaseUser?.uid) return;
