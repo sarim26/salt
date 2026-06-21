@@ -15,6 +15,7 @@ import {
   resetPassword,
   signIn,
   signUp,
+  awaitAuthForFirestore,
   deleteAccount as firebaseDeleteAccount,
 } from '../services/auth';
 import {
@@ -62,6 +63,7 @@ interface AppContextValue {
   screen: Screen;
   appMode: AppMode;
   authLoading: boolean;
+  sessionReady: boolean;
   bootstrapError: string;
   authMode: 'signin' | 'signup';
   user: User | null;
@@ -188,6 +190,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [postTag, setPostTag] = useState('food');
   const [postLoc, setPostLoc] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [firestoreReady, setFirestoreReady] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const authWasSignedIn = useRef(false);
   const metPostIdsRef = useRef(metPostIds);
@@ -327,7 +330,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         toast(msg);
       }
     );
-  }, [firebaseUser, applyProfile, toast]);
+  }, [firebaseUser?.uid, firebaseUser?.email, applyProfile, toast]);
 
   useEffect(() => {
     if (!firebaseUser || user) return;
@@ -340,7 +343,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [firebaseUser, user]);
 
   useEffect(() => {
-    if (!firebaseUser || !profile) return;
+    if (!firebaseUser || !profile) {
+      setFirestoreReady(false);
+      return;
+    }
+
+    let cancelled = false;
+    setFirestoreReady(false);
+
+    awaitAuthForFirestore()
+      .then(() => {
+        if (!cancelled) setFirestoreReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) setFirestoreReady(true);
+      });
+
+    return () => {
+      cancelled = true;
+      setFirestoreReady(false);
+    };
+  }, [firebaseUser?.uid, profile?.email, profile?.schoolDomain]);
+
+  useEffect(() => {
+    if (!firestoreReady || !firebaseUser || !profile) return;
 
     const uid = firebaseUser.uid;
     const domain = emailDomain(firebaseUser.email || profile.email) || profile.schoolDomain;
@@ -374,7 +400,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ];
 
     return () => unsubs.forEach((u) => u());
-  }, [firebaseUser, profile, toast]);
+  }, [firestoreReady, firebaseUser?.uid, profile?.schoolDomain, profile?.email, toast]);
 
   useEffect(() => {
     setPosts((prev) =>
@@ -649,6 +675,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     screen,
     appMode,
     authLoading,
+    sessionReady: firestoreReady,
     bootstrapError,
     authMode,
     user,

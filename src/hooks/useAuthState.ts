@@ -11,10 +11,22 @@ export function useAuthState() {
       setLoading(false);
       return;
     }
-    return onAuthStateChanged(auth, (user) => {
-      setFirebaseUser(user);
-      setLoading(false);
+
+    let unsub: (() => void) | undefined;
+
+    auth.authStateReady().then(() => {
+      if (!auth) return;
+      unsub = onAuthStateChanged(auth, (user) => {
+        setFirebaseUser((prev) => {
+          if (!user) return null;
+          if (prev?.uid === user.uid) return prev;
+          return user;
+        });
+        setLoading(false);
+      });
     });
+
+    return () => unsub?.();
   }, []);
 
   return { firebaseUser, loading };

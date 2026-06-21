@@ -29,9 +29,11 @@ const SCREEN_CONTENT: Record<Screen, React.ReactNode> = {
 };
 
 function AppShell() {
-  const { screen, authLoading, user, firebaseUid, bootstrapError, doLogout } = useApp();
+  const { screen, authLoading, user, firebaseUid, bootstrapError, sessionReady, doLogout } =
+    useApp();
 
-  const bootstrapping = authLoading || (Boolean(firebaseUid) && !user);
+  const bootstrapping =
+    authLoading || (Boolean(firebaseUid) && !user) || (Boolean(user) && !sessionReady);
 
   if (bootstrapping) {
     return (

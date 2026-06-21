@@ -44,6 +44,15 @@ export async function refreshAuthUser(user: FirebaseUser): Promise<FirebaseUser>
   return current;
 }
 
+/** Ensure Auth is restored and Firestore has a valid token (fixes empty feed after reload). */
+export async function awaitAuthForFirestore(): Promise<void> {
+  if (!auth) return;
+  await auth.authStateReady();
+  if (auth.currentUser) {
+    await auth.currentUser.getIdToken();
+  }
+}
+
 export async function signUp(email: string, password: string): Promise<FirebaseUser> {
   if (!auth) throw new Error('Firebase not configured');
   const err = validateCampusEmail(email);
