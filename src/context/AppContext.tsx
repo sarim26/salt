@@ -293,15 +293,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const fresh = await refreshAuthUser(firebaseUser);
       setFirebaseUser(fresh);
       if (!fresh.emailVerified) {
-        setLoginError('email not verified yet — check your inbox');
+        setLoginError(
+          'email not verified yet — open the newest link (try on your phone); resend if needed'
+        );
         blockUnverifiedSession();
         return;
       }
       setPendingVerification(false);
+      toast('EMAIL VERIFIED — WELCOME TO SALT');
     } catch (e) {
       setLoginError(e instanceof Error ? e.message : 'could not verify status');
     }
-  }, [firebaseUser, setFirebaseUser, blockUnverifiedSession]);
+  }, [firebaseUser, setFirebaseUser, blockUnverifiedSession, toast]);
 
   const handleResetPassword = useCallback(async () => {
     setLoginError('');

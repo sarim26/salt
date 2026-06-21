@@ -3,7 +3,7 @@ export function firestoreErrorMessage(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err);
 
   if (code === 'permission-denied' || msg.includes('insufficient permissions')) {
-    return 'permission denied — verify your .edu email is confirmed, then refresh';
+    return 'permission denied — sign out and sign in again; disable ad blockers for this site';
   }
   if (code === 'unauthenticated') {
     return 'session expired — sign in again';

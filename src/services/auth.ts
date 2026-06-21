@@ -37,10 +37,13 @@ export function validateCampusEmail(email: string): string | null {
   return null;
 }
 
+/** Reload user profile and refresh the ID token so Firestore rules see email_verified. */
 export async function refreshAuthUser(user: FirebaseUser): Promise<FirebaseUser> {
   await user.reload();
   if (!auth?.currentUser) throw new Error('session expired');
-  return auth.currentUser;
+  const current = auth.currentUser;
+  await current.getIdToken(true);
+  return current;
 }
 
 export async function signUp(email: string, password: string): Promise<FirebaseUser> {
@@ -103,7 +106,10 @@ export async function deleteAccount(password: string): Promise<void> {
     await deleteUser(user);
   } catch (e) {
     const code = (e as { code?: string }).code || '';
-    throw new Error(parseAuthError(code));
+    if (code.startsWith('auth/')) {
+      throw new Error(parseAuthError(code));
+    }
+    throw e instanceof Error ? e : new Error('could not delete account');
   }
 }
 
