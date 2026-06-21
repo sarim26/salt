@@ -2,7 +2,6 @@ import { AppProvider, useApp } from './context/AppContext';
 import { BottomNav } from './components/BottomNav';
 import { PostSheet } from './components/PostSheet';
 import { RateOverlay } from './components/RateOverlay';
-import { EmailVerificationGate } from './components/EmailVerificationGate';
 import { LoginScreen } from './screens/LoginScreen';
 import { FeedScreen } from './screens/FeedScreen';
 import { ExploreScreen } from './screens/ExploreScreen';
@@ -30,25 +29,15 @@ const SCREEN_CONTENT: Record<Screen, React.ReactNode> = {
 };
 
 function AppShell() {
-  const { screen, authLoading, pendingVerification, needsEmailVerification, user } = useApp();
+  const { screen, authLoading, user, firebaseUid } = useApp();
 
-  const showVerificationGate = needsEmailVerification || pendingVerification;
+  const bootstrapping = authLoading || (Boolean(firebaseUid) && !user);
 
-  if (authLoading) {
+  if (bootstrapping) {
     return (
       <div id="app">
         <div className="screen active" id="screen-login" style={{ justifyContent: 'center' }}>
           <div className="login-tag">loading...</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (showVerificationGate) {
-    return (
-      <div id="app">
-        <div className="screen active" id="screen-login">
-          <EmailVerificationGate />
         </div>
       </div>
     );
@@ -65,7 +54,7 @@ function AppShell() {
           {name === 'login' || user ? SCREEN_CONTENT[name] : null}
         </div>
       ))}
-      {user && !needsEmailVerification && (
+      {user && (
         <>
           <PostSheet />
           <RateOverlay />

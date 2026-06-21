@@ -3,7 +3,6 @@ import {
   deleteUser,
   EmailAuthProvider,
   reauthenticateWithCredential,
-  sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
@@ -37,7 +36,6 @@ export function validateCampusEmail(email: string): string | null {
   return null;
 }
 
-/** Reload user profile and refresh the ID token so Firestore rules see email_verified. */
 export async function refreshAuthUser(user: FirebaseUser): Promise<FirebaseUser> {
   await user.reload();
   if (!auth?.currentUser) throw new Error('session expired');
@@ -53,7 +51,6 @@ export async function signUp(email: string, password: string): Promise<FirebaseU
   if (password.length < 6) throw new Error('password must be at least 6 characters');
 
   const cred = await createUserWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
-  await sendEmailVerification(cred.user);
   return refreshAuthUser(cred.user);
 }
 
@@ -74,10 +71,6 @@ export async function signIn(email: string, password: string): Promise<FirebaseU
     const code = (e as { code?: string }).code || '';
     throw new Error(parseAuthError(code));
   }
-}
-
-export async function resendVerification(user: FirebaseUser): Promise<void> {
-  await sendEmailVerification(user);
 }
 
 export async function resetPassword(email: string): Promise<void> {

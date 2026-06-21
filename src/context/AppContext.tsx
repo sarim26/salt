@@ -12,11 +12,9 @@ import { useAuthState } from '../hooks/useAuthState';
 import { isFirebaseConfigured } from '../lib/firebase';
 import {
   logOut as firebaseLogOut,
-  resendVerification,
   resetPassword,
   signIn,
   signUp,
-  refreshAuthUser,
   deleteAccount as firebaseDeleteAccount,
 } from '../services/auth';
 import {
@@ -64,8 +62,6 @@ interface AppContextValue {
   appMode: AppMode;
   authLoading: boolean;
   authMode: 'signin' | 'signup';
-  pendingVerification: boolean;
-  needsEmailVerification: boolean;
   user: User | null;
   profile: UserProfile | null;
   firebaseUid: string | null;
@@ -109,8 +105,6 @@ interface AppContextValue {
   doLogout: () => void;
   deleteAccount: (password: string) => Promise<void>;
   uploadProfilePhoto: (file: File) => Promise<void>;
-  resendVerification: () => void;
-  checkVerification: () => void;
   resetPassword: () => void;
   showAura: () => void;
   setFilterTab: (f: FilterTab) => void;
@@ -153,11 +147,10 @@ function profileToUser(profile: UserProfile): User {
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const { firebaseUser, loading: authLoading, setFirebaseUser } = useAuthState();
+  const { firebaseUser, loading: authLoading } = useAuthState();
 
   const [appMode, setAppMode] = useState<AppMode>(null);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
-  const [pendingVerification, setPendingVerification] = useState(false);
   const [screen, setScreen] = useState<Screen>('login');
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -205,7 +198,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAppMode(null);
     setUser(null);
     setProfile(null);
-    setPendingVerification(false);
     setPosts([]);
     setMyPostHistory([]);
     setChats([]);
@@ -223,31 +215,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setScreen('login');
   }, []);
 
-  const applyProfile = useCallback(
-    (p: UserProfile) => {
-      if (!firebaseUser?.emailVerified) return;
-      setProfile(p);
-      setUser(profileToUser(p));
-      setMyAura(p.aura);
-      setMyPosts(p.postCount);
-      setMyMeets(p.meetCount);
-      setMeetCounts(p.meetCounts || {});
-      setEarnedBdg(new Set(p.badges || []));
-    },
-    [firebaseUser?.emailVerified]
-  );
-
-  const blockUnverifiedSession = useCallback(() => {
-    setPendingVerification(true);
-    setAppMode(null);
-    setUser(null);
-    setProfile(null);
-    setPosts([]);
-    setMyPostHistory([]);
-    setChats([]);
-    setCurrentChatMessages([]);
-    setLb([]);
-    setScreen('login');
+  const applyProfile = useCallback((p: UserProfile) => {
+    setProfile(p);
+    setUser(profileToUser(p));
+    setMyAura(p.aura);
+    setMyPosts(p.postCount);
+    setMyMeets(p.meetCount);
+    setMeetCounts(p.meetCounts || {});
+    setEarnedBdg(new Set(p.badges || []));
   }, []);
 
   const doLogin = useCallback(async () => {
@@ -258,53 +233,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     setLoginError('');
     try {
-      const fbUser =
-        authMode === 'signup'
-          ? await signUp(loginEmail, loginPassword)
-          : await signIn(loginEmail, loginPassword);
-
-      if (!fbUser.emailVerified) {
-        blockUnverifiedSession();
-        setLoginEmail(fbUser.email || loginEmail);
-        return;
+      if (authMode === 'signup') {
+        await signUp(loginEmail, loginPassword);
+      } else {
+        await signIn(loginEmail, loginPassword);
       }
-
-      setPendingVerification(false);
     } catch (e) {
       setLoginError(e instanceof Error ? e.message : 'authentication failed');
     }
-  }, [loginEmail, loginPassword, authMode, blockUnverifiedSession]);
-
-  const handleResendVerification = useCallback(async () => {
-    if (!firebaseUser) return;
-    setLoginError('');
-    try {
-      await resendVerification(firebaseUser);
-      toast('VERIFICATION EMAIL SENT');
-    } catch (e) {
-      setLoginError(e instanceof Error ? e.message : 'could not resend email');
-    }
-  }, [firebaseUser, toast]);
-
-  const checkVerification = useCallback(async () => {
-    if (!firebaseUser) return;
-    setLoginError('');
-    try {
-      const fresh = await refreshAuthUser(firebaseUser);
-      setFirebaseUser(fresh);
-      if (!fresh.emailVerified) {
-        setLoginError(
-          'email not verified yet — open the newest link (try on your phone); resend if needed'
-        );
-        blockUnverifiedSession();
-        return;
-      }
-      setPendingVerification(false);
-      toast('EMAIL VERIFIED — WELCOME TO SALT');
-    } catch (e) {
-      setLoginError(e instanceof Error ? e.message : 'could not verify status');
-    }
-  }, [firebaseUser, setFirebaseUser, blockUnverifiedSession, toast]);
+  }, [loginEmail, loginPassword, authMode]);
 
   const handleResetPassword = useCallback(async () => {
     setLoginError('');
@@ -344,32 +281,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!firebaseUser) {
-      if (profile || appMode === 'live') resetSession();
-      return;
+    if (!firebaseUser && (profile || appMode === 'live')) {
+      resetSession();
     }
-    if (!firebaseUser.emailVerified) {
-      blockUnverifiedSession();
-      setLoginEmail(firebaseUser.email || '');
-    } else {
-      setPendingVerification(false);
-    }
-  }, [firebaseUser, authLoading, profile, appMode, resetSession, blockUnverifiedSession]);
+  }, [firebaseUser, authLoading, profile, appMode, resetSession]);
 
   useEffect(() => {
-    if (!firebaseUser?.emailVerified) return;
     if (profile) setAppMode('live');
-  }, [firebaseUser, profile]);
+  }, [profile]);
 
   useEffect(() => {
-    if (!firebaseUser?.emailVerified) return;
+    if (!firebaseUser) return;
 
     const uid = firebaseUser.uid;
     return subscribeProfile(
       uid,
       firebaseUser.email,
       (p) => {
-        if (p && firebaseUser.emailVerified) {
+        if (p) {
           applyProfile(p);
           setAppMode('live');
           setScreen((s) => (s === 'login' ? 'feed' : s));
@@ -387,7 +316,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [profile, firebaseUser?.uid, toast]);
 
   useEffect(() => {
-    if (!firebaseUser?.emailVerified || !profile) return;
+    if (!firebaseUser || !profile) return;
 
     const uid = firebaseUser.uid;
     const domain = profile.schoolDomain;
@@ -443,12 +372,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const goScreen = useCallback(
     (n: Screen) => {
-      const hasSession = user || pendingVerification;
-      if (!hasSession && n !== 'login') return;
+      if (!user && !firebaseUser && n !== 'login') return;
       setScreen(n);
       if (n === 'explore') setSearchQuery('');
     },
-    [user, pendingVerification]
+    [user, firebaseUser]
   );
 
   const showAura = useCallback(() => {
@@ -671,15 +599,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [firebaseUser, toast]
   );
 
-  const needsEmailVerification = Boolean(firebaseUser && !firebaseUser.emailVerified);
-
   const value: AppContextValue = {
     screen,
     appMode,
     authLoading,
     authMode,
-    pendingVerification,
-    needsEmailVerification,
     user,
     profile,
     firebaseUid: firebaseUser?.uid ?? null,
@@ -723,8 +647,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     doLogout,
     deleteAccount,
     uploadProfilePhoto,
-    resendVerification: handleResendVerification,
-    checkVerification,
     resetPassword: handleResetPassword,
     showAura,
     setFilterTab,

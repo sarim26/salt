@@ -7,8 +7,8 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isVerified() {
-      return isSignedIn() && request.auth.token.email_verified == true;
+    function canUseApp() {
+      return isSignedIn() && callerSchoolOk();
     }
 
     function isOwner(uid) {
@@ -38,7 +38,7 @@ service cloud.firestore {
 
     function validUserCreate(uid) {
       return isOwner(uid)
-        && isVerified()
+        && canUseApp()
         && callerSchoolOk()
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.schoolDomain == callerSchool()
@@ -56,7 +56,7 @@ service cloud.firestore {
     }
 
     function postReplyIncrement() {
-      return isVerified()
+      return canUseApp()
         && callerSchoolOk()
         && sameSchool(resource.data)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['replyCount'])
@@ -65,7 +65,7 @@ service cloud.firestore {
 
     function ownerProfileUpdate(uid) {
       return isOwner(uid)
-        && isVerified()
+        && canUseApp()
         && request.resource.data.email == resource.data.email
         && request.resource.data.schoolDomain == resource.data.schoolDomain
         && request.resource.data.createdAt == resource.data.createdAt
@@ -77,13 +77,13 @@ service cloud.firestore {
       allow read: if isSignedIn() && (isOwner(uid) || sameSchool(resource.data));
       allow create: if validUserCreate(uid);
       allow update: if ownerProfileUpdate(uid);
-      allow delete: if isOwner(uid) && isVerified();
+      allow delete: if isOwner(uid) && canUseApp();
 
       match /auraEvents/{eventId} {
         allow read: if isOwner(uid);
-        allow create: if isOwner(uid) && isVerified();
+        allow create: if isOwner(uid) && canUseApp();
         allow update: if false;
-        allow delete: if isOwner(uid) && isVerified();
+        allow delete: if isOwner(uid) && canUseApp();
       }
     }
 
@@ -92,7 +92,7 @@ service cloud.firestore {
         && sameSchool(resource.data)
         && (resource.data.expiresAt > request.time
           || resource.data.authorUid == request.auth.uid);
-      allow create: if isVerified()
+      allow create: if canUseApp()
         && callerSchoolOk()
         && request.resource.data.authorUid == request.auth.uid
         && request.resource.data.schoolDomain == callerSchool()
@@ -100,47 +100,47 @@ service cloud.firestore {
         && replyCountOf(request.resource.data) == 0
         && request.resource.data.expiresAt > request.time;
       allow update: if postReplyIncrement()
-        || (isVerified()
+        || (canUseApp()
           && resource.data.authorUid == request.auth.uid
           && request.resource.data.authorUid == resource.data.authorUid
           && request.resource.data.schoolDomain == resource.data.schoolDomain
           && request.resource.data.score == resource.data.score);
-      allow delete: if isVerified() && resource.data.authorUid == request.auth.uid;
+      allow delete: if canUseApp() && resource.data.authorUid == request.auth.uid;
 
       match /votes/{voteUid} {
         allow read: if isSignedIn()
           && sameSchool(get(/databases/$(database)/documents/posts/$(postId)).data);
-        allow create, update: if isVerified()
+        allow create, update: if canUseApp()
           && voteUid == request.auth.uid
           && request.resource.data.value in [1, -1]
           && sameSchool(get(/databases/$(database)/documents/posts/$(postId)).data);
-        allow delete: if isVerified() && voteUid == request.auth.uid;
+        allow delete: if canUseApp() && voteUid == request.auth.uid;
       }
     }
 
     match /chats/{chatId} {
-      allow get: if isVerified() && callerSchoolOk() && (
+      allow get: if canUseApp() && callerSchoolOk() && (
         !exists(/databases/$(database)/documents/chats/$(chatId))
         || (request.auth.uid in resource.data.participantUids && sameSchool(resource.data))
       );
-      allow list: if isVerified()
+      allow list: if canUseApp()
         && callerSchoolOk()
         && request.auth.uid in resource.data.participantUids
         && sameSchool(resource.data);
-      allow create: if isVerified()
+      allow create: if canUseApp()
         && callerSchoolOk()
         && request.auth.uid in request.resource.data.participantUids
         && request.resource.data.schoolDomain == callerSchool();
-      allow update: if isVerified()
+      allow update: if canUseApp()
         && callerSchoolOk()
         && request.auth.uid in resource.data.participantUids
         && sameSchool(resource.data);
       allow delete: if false;
 
       match /messages/{messageId} {
-        allow read: if isVerified()
+        allow read: if canUseApp()
           && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantUids;
-        allow create: if isVerified()
+        allow create: if canUseApp()
           && request.resource.data.senderUid == request.auth.uid
           && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantUids;
         allow update, delete: if false;
@@ -148,10 +148,10 @@ service cloud.firestore {
     }
 
     match /ratings/{ratingId} {
-      allow read: if isVerified()
+      allow read: if canUseApp()
         && (resource.data.reviewerUid == request.auth.uid
           || resource.data.targetUid == request.auth.uid);
-      allow create: if isVerified()
+      allow create: if canUseApp()
         && callerSchoolOk()
         && ratingId == request.auth.uid + '_' + request.resource.data.postId
         && request.resource.data.reviewerUid == request.auth.uid
@@ -163,7 +163,7 @@ service cloud.firestore {
           == get(/databases/$(database)/documents/posts/$(request.resource.data.postId)).data.authorUid
         && sameSchool(get(/databases/$(database)/documents/posts/$(request.resource.data.postId)).data)
         && !exists(/databases/$(database)/documents/ratings/$(ratingId));
-      allow update: if isVerified()
+      allow update: if canUseApp()
         && resource.data.targetUid == request.auth.uid
         && resource.data.applied == false
         && request.resource.data.applied == true
