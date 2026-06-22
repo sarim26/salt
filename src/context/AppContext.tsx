@@ -28,13 +28,20 @@ import {
 } from '../services/chats';
 import {
   createPost,
+  deletePost,
   setVote,
   subscribeFeed,
   subscribeLeaderboard,
   subscribeMyPosts,
   subscribeProfile,
+  subscribeVoteIndex,
 } from '../services/posts';
-import { applyPendingRatings, submitRating, subscribePendingRatings } from '../services/ratings';
+import {
+  applyPendingRatings,
+  submitRating,
+  subscribeMyRatings,
+  subscribePendingRatings,
+} from '../services/ratings';
 import { uploadAvatar } from '../services/users';
 import { sharePost as sharePostUtil } from '../utils/share';
 import type { UserProfile } from '../types/firestore';
@@ -120,7 +127,8 @@ interface AppContextValue {
   openSheetWith: (t: string) => void;
   closeSheet: (targetId?: string) => void;
   doPost: () => void;
-  submitRate: () => void;
+  submitRate: (vibes: string[]) => void;
+  deletePost: (id: string) => Promise<void>;
   getSortedPosts: () => Post[];
   getTagAff: () => Record<string, number>;
   doSearch: (v: string) => void;
@@ -128,7 +136,7 @@ interface AppContextValue {
 
 const AppContext = createContext<AppContextValue | null>(null);
 
-const INITIAL_BADGES = new Set(['verified student', 'early adopter']);
+const INITIAL_BADGES = new Set(['verified student']);
 
 function profileToUser(profile: UserProfile): User {
   const uni = UNIVERSITIES[profile.schoolDomain];
@@ -188,6 +196,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const liveSessionUid = useRef<string | null>(null);
   const feedUnsubsRef = useRef<Array<() => void>>([]);
   const sessionGenRef = useRef(0);
+  const voteIndexRef = useRef<Record<string, 1 | -1>>({});
   const metPostIdsRef = useRef(metPostIds);
   metPostIdsRef.current = metPostIds;
 
@@ -392,16 +401,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
       };
 
       feedUnsubsRef.current = [
+        subscribeVoteIndex(
+          uid,
+          (votes) => {
+            voteIndexRef.current = votes;
+            setPosts((prev) =>
+              prev.map((p) => ({
+                ...p,
+                uv: votes[String(p.id)] ?? 0,
+              }))
+            );
+          },
+          onErr
+        ),
+        subscribeMyRatings(
+          uid,
+          (postIds) => {
+            setMetPostIds(new Set(postIds));
+          },
+          onErr
+        ),
         subscribeFeed(
           domain,
-          uid,
+          () => voteIndexRef.current,
           (feedPosts) => {
             setPosts((prev) => {
+              const votes = voteIndexRef.current;
               const next = feedPosts.map((p) => ({
                 ...p,
+                uv: votes[String(p.id)] ?? 0,
                 met: metPostIdsRef.current.has(p.id),
               }));
-              // Ignore transient empty snapshots while reconnecting.
               if (next.length === 0 && prev.length > 0) return prev;
               return next;
             });
@@ -634,34 +664,53 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [postText, postTag, postLoc, toast, firebaseUser, profile]);
 
-  const submitRate = useCallback(async () => {
-    if (!starV) {
-      toast('PICK A STAR RATING FIRST');
-      return;
-    }
-    const p = posts.find((x) => x.id === ratePostId);
-    if (!p) return;
+  const submitRate = useCallback(
+    async (vibes: string[]) => {
+      if (!starV) {
+        toast('PICK A STAR RATING FIRST');
+        return;
+      }
+      const p = posts.find((x) => x.id === ratePostId);
+      if (!p) return;
 
-    if (!ratePostId || !firebaseUser || !profile) return;
-    if (p.authorUid && p.authorUid === firebaseUser.uid) {
-      toast('YOU CANNOT RATE YOUR OWN POST');
-      setRateOpen(false);
-      return;
-    }
-    try {
-      await submitRating(
-        firebaseUser.uid,
-        profile,
-        String(ratePostId),
-        p,
-        starV
-      );
-      setRateOpen(false);
-      toast('RATING SUBMITTED');
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'rating failed');
-    }
-  }, [starV, posts, ratePostId, toast, firebaseUser, profile]);
+      if (!ratePostId || !firebaseUser || !profile) return;
+      if (p.authorUid && p.authorUid === firebaseUser.uid) {
+        toast('YOU CANNOT RATE YOUR OWN POST');
+        setRateOpen(false);
+        return;
+      }
+      try {
+        await submitRating(
+          firebaseUser.uid,
+          profile,
+          String(ratePostId),
+          p,
+          starV,
+          vibes
+        );
+        setMetPostIds((prev) => new Set(prev).add(ratePostId));
+        setRateOpen(false);
+        toast('RATING SUBMITTED');
+      } catch (e) {
+        toast(e instanceof Error ? e.message : 'rating failed');
+      }
+    },
+    [starV, posts, ratePostId, toast, firebaseUser, profile]
+  );
+
+  const removePost = useCallback(
+    async (id: string) => {
+      if (!firebaseUser) return;
+      try {
+        await deletePost(id, firebaseUser.uid);
+        toast('POST DELETED');
+      } catch (e) {
+        const msg = firestoreErrorMessage(e);
+        toast(msg || 'could not delete post');
+      }
+    },
+    [firebaseUser, toast]
+  );
 
   const doSearch = useCallback((v: string) => setSearchQuery(v), []);
 
@@ -743,6 +792,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     closeSheet,
     doPost,
     submitRate,
+    deletePost: removePost,
     getSortedPosts,
     getTagAff,
     doSearch,

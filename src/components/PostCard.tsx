@@ -145,7 +145,7 @@ export function PostCard({
                   className={`mbtn${p.met ? ' active' : ''}`}
                   onClick={() => onMeetUp(p.id)}
                 >
-                  {p.met ? 'RATE AURA ✦' : 'MEET UP'}
+                  {p.met ? 'RATED ✓' : 'MEET UP'}
                 </button>
               )}
             </div>

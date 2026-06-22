@@ -3,6 +3,7 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
   limit,
   onSnapshot,
   orderBy,
@@ -57,28 +58,54 @@ export function subscribeProfile(
 
 export function subscribeFeed(
   schoolDomain: string,
-  _uid: string,
+  getVoteIndex: () => Record<string, 1 | -1>,
   onData: (posts: Post[]) => void,
   onError?: (err: Error) => void
 ): Unsubscribe {
   if (!db) return () => {};
 
+  const domain = schoolDomain.toLowerCase();
   const q = query(
     collection(db, 'posts'),
-    where('schoolDomain', '==', schoolDomain),
-    where('expiresAt', '>', Timestamp.now()),
-    orderBy('expiresAt'),
+    where('schoolDomain', '==', domain),
     orderBy('createdAt', 'desc')
   );
 
   return onSnapshot(
     q,
     (snap) => {
-      const posts: Post[] = snap.docs.map((postDoc) => {
-        const data = postDoc.data() as PostDoc;
-        return mapPost(postDoc.id, data, data.score ?? 0, 0);
-      });
+      const nowMs = Date.now();
+      const posts: Post[] = snap.docs
+        .filter((postDoc) => {
+          const data = postDoc.data() as PostDoc;
+          return (data.expiresAt?.toMillis?.() ?? 0) > nowMs;
+        })
+        .map((postDoc) => {
+          const data = postDoc.data() as PostDoc;
+          const uv = getVoteIndex()[postDoc.id] ?? 0;
+          return mapPost(postDoc.id, data, data.score ?? 0, uv);
+        });
       onData(posts);
+    },
+    (err) => onError?.(err)
+  );
+}
+
+export function subscribeVoteIndex(
+  uid: string,
+  onData: (votes: Record<string, 1 | -1>) => void,
+  onError?: (err: Error) => void
+): Unsubscribe {
+  if (!db) return () => {};
+  return onSnapshot(
+    collection(db, 'users', uid, 'voteIndex'),
+    (snap) => {
+      const votes: Record<string, 1 | -1> = {};
+      snap.docs.forEach((d) => {
+        const v = d.data().value;
+        if (v === 1 || v === -1) votes[d.id] = v;
+      });
+      onData(votes);
     },
     (err) => onError?.(err)
   );
@@ -159,6 +186,9 @@ export async function createPost(
   if (postCount === 1 && !hadFirstPost) {
     badges.push('first post');
   }
+  if (tags.includes('trade') && !badges.includes('meal trader')) {
+    badges.push('meal trader');
+  }
 
   const batch = writeBatch(db);
   const postRef = doc(collection(db, 'posts'));
@@ -202,6 +232,15 @@ export async function createPost(
     });
   }
 
+  if (tags.includes('trade') && !activeProfile.badges?.includes('meal trader')) {
+    batch.set(doc(collection(db, 'users', uid, 'auraEvents')), {
+      ico: 'ti-award',
+      txt: 'badge unlocked: meal trader',
+      pts: '🏅',
+      createdAt: serverTimestamp(),
+    });
+  }
+
   await batch.commit();
   return postRef.id;
 }
@@ -209,12 +248,43 @@ export async function createPost(
 export async function setVote(postId: string, uid: string, value: 1 | -1): Promise<void> {
   if (!db) throw new Error('Firebase not configured');
   const voteRef = doc(db, 'posts', postId, 'votes', uid);
+  const indexRef = doc(db, 'users', uid, 'voteIndex', postId);
   const existing = await getDoc(voteRef);
   if (existing.exists() && existing.data()?.value === value) {
     await deleteDoc(voteRef);
+    await deleteDoc(indexRef);
   } else {
-    await setDoc(voteRef, { value, updatedAt: serverTimestamp() });
+    const payload = { value, updatedAt: serverTimestamp() };
+    await setDoc(voteRef, payload);
+    await setDoc(indexRef, payload);
   }
+  await recomputePostScore(postId);
+}
+
+async function recomputePostScore(postId: string): Promise<void> {
+  if (!db) return;
+  const votesSnap = await getDocs(collection(db, 'posts', postId, 'votes'));
+  let score = 0;
+  votesSnap.docs.forEach((d) => {
+    score += (d.data().value as number) || 0;
+  });
+  await updateDoc(doc(db, 'posts', postId), { score });
+}
+
+export async function deletePost(postId: string, uid: string): Promise<void> {
+  if (!db) throw new Error('Firebase not configured');
+  const postRef = doc(db, 'posts', postId);
+  const snap = await getDoc(postRef);
+  if (!snap.exists()) throw new Error('Post not found');
+  const data = snap.data() as PostDoc;
+  if (data.authorUid !== uid) throw new Error('Not your post');
+
+  const votesSnap = await getDocs(collection(db, 'posts', postId, 'votes'));
+  const batch = writeBatch(db);
+  votesSnap.docs.forEach((d) => batch.delete(d.ref));
+  batch.delete(postRef);
+  batch.delete(doc(db, 'users', uid, 'voteIndex', postId));
+  await batch.commit();
 }
 
 function mapPost(

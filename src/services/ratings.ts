@@ -20,7 +20,8 @@ export async function submitRating(
   profile: UserProfile,
   postId: string,
   post: Post,
-  stars: number
+  stars: number,
+  vibes: string[] = []
 ): Promise<{ auraGiven: number }> {
   if (!db) throw new Error('Firebase not configured');
   if (!post.authorUid) throw new Error('Invalid post');
@@ -65,6 +66,7 @@ export async function submitRating(
     reviewerReward: 0,
     schoolDomain: profile.schoolDomain,
     applied: false,
+    vibes: vibes.length ? vibes : [],
     createdAt: serverTimestamp(),
   });
 
@@ -111,12 +113,18 @@ export async function applyPendingRatings(targetUid: string): Promise<number> {
   const userSnap = await getDoc(userRef);
   if (!userSnap.exists()) return 0;
 
-  let aura = userSnap.data().aura || 0;
   const batch = writeBatch(db);
+
+  let aura = userSnap.data().aura || 0;
+  const badges = [...(userSnap.data().badges || [])];
+  const hadGoodVibes = badges.includes('good vibes');
+
+  let earnedGoodVibes = false;
 
   snap.docs.forEach((ratingDoc) => {
     const r = ratingDoc.data();
     aura += r.auraGiven || 0;
+    if (r.stars === 5) earnedGoodVibes = true;
     batch.update(ratingDoc.ref, { applied: true });
     batch.set(doc(collection(db!, 'users', targetUid, 'auraEvents')), {
       ico: 'ti-star',
@@ -126,7 +134,17 @@ export async function applyPendingRatings(targetUid: string): Promise<number> {
     });
   });
 
-  batch.update(userRef, { aura, updatedAt: serverTimestamp() });
+  if (earnedGoodVibes && !hadGoodVibes) {
+    badges.push('good vibes');
+    batch.set(doc(collection(db!, 'users', targetUid, 'auraEvents')), {
+      ico: 'ti-award',
+      txt: 'badge unlocked: good vibes',
+      pts: '🏅',
+      createdAt: serverTimestamp(),
+    });
+  }
+
+  batch.update(userRef, { aura, badges, updatedAt: serverTimestamp() });
   await batch.commit();
   return snap.size;
 }
@@ -159,6 +177,29 @@ export function subscribePendingRatings(
       } finally {
         applying = false;
       }
+    },
+    (err) => onError?.(err)
+  );
+}
+
+export function subscribeMyRatings(
+  reviewerUid: string,
+  onData: (postIds: Set<string>) => void,
+  onError?: (err: Error) => void
+): Unsubscribe {
+  if (!db) return () => {};
+
+  const q = query(collection(db, 'ratings'), where('reviewerUid', '==', reviewerUid));
+
+  return onSnapshot(
+    q,
+    (snap) => {
+      const ids = new Set<string>();
+      snap.docs.forEach((d) => {
+        const postId = d.data().postId;
+        if (typeof postId === 'string') ids.add(postId);
+      });
+      onData(ids);
     },
     (err) => onError?.(err)
   );

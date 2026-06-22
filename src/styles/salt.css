@@ -176,6 +176,8 @@ body{background-color:var(--bg);background-image:linear-gradient(var(--grid) 1px
 .hist-stats{display:flex;gap:12px;font-size:11px;color:var(--muted)}
 .hist-stats i{font-size:12px;vertical-align:middle;margin-right:2px}
 .hist-loc{font-size:10px;color:var(--muted);margin-top:8px;display:flex;align-items:center;gap:3px}
+.hist-del{margin-top:10px;background:none;border:1px solid var(--border2);color:var(--muted);font-family:var(--fh);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;padding:6px 10px;cursor:pointer;width:100%}
+.hist-del:hover{border-color:var(--red);color:var(--red)}
 .hist-empty{font-size:11px;color:var(--muted);padding:8px 0 16px;font-family:var(--fm);line-height:1.6}
 .hist-new{width:100%;margin-top:8px;background:transparent;color:var(--teal);border:1px solid var(--teal);padding:8px 12px;font-family:var(--fh);font-size:12px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:0.5px}
 .danger-zone{margin:24px 16px 32px;padding-top:20px;border-top:1px solid var(--border)}

@@ -16,14 +16,13 @@ service cloud.firestore {
     }
 
     function authEmailDomain() {
-      return request.auth.token.email.split('@')[1];
+      return request.auth.token.email.split('@')[1].lower();
     }
 
     function isAllowedSchool(domain) {
       return domain in ['uic.edu', 'illinois.edu', 'mit.edu'];
     }
 
-    // Use auth email domain — do NOT require users/{uid} profile doc to exist (fixes login race)
     function callerSchool() {
       return authEmailDomain();
     }
@@ -33,7 +32,7 @@ service cloud.firestore {
     }
 
     function sameSchool(data) {
-      return callerSchoolOk() && data.schoolDomain == callerSchool();
+      return callerSchoolOk() && data.schoolDomain.lower() == callerSchool();
     }
 
     function validUserCreate(uid) {
@@ -63,6 +62,15 @@ service cloud.firestore {
         && request.resource.data.replyCount == replyCountOf(resource.data) + 1;
     }
 
+    function postScoreUpdate() {
+      return canUseApp()
+        && sameSchool(resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['score'])
+        && request.resource.data.score is int
+        && request.resource.data.score >= -500
+        && request.resource.data.score <= 500;
+    }
+
     function ownerProfileUpdate(uid) {
       return isOwner(uid)
         && canUseApp()
@@ -85,6 +93,11 @@ service cloud.firestore {
         allow update: if false;
         allow delete: if isOwner(uid) && canUseApp();
       }
+
+      match /voteIndex/{postId} {
+        allow read, write: if isOwner(uid) && canUseApp();
+        allow delete: if isOwner(uid) && canUseApp();
+      }
     }
 
     match /posts/{postId} {
@@ -93,8 +106,8 @@ service cloud.firestore {
         && (resource.data.expiresAt > request.time
           || resource.data.authorUid == request.auth.uid);
       allow list: if isSignedIn()
-        && sameSchool(resource.data)
-        && resource.data.expiresAt > request.time;
+        && callerSchoolOk()
+        && resource.data.schoolDomain.lower() == callerSchool();
       allow create: if canUseApp()
         && callerSchoolOk()
         && request.resource.data.authorUid == request.auth.uid
@@ -103,6 +116,7 @@ service cloud.firestore {
         && replyCountOf(request.resource.data) == 0
         && request.resource.data.expiresAt > request.time;
       allow update: if postReplyIncrement()
+        || postScoreUpdate()
         || (canUseApp()
           && resource.data.authorUid == request.auth.uid
           && request.resource.data.authorUid == resource.data.authorUid
@@ -138,7 +152,8 @@ service cloud.firestore {
         && callerSchoolOk()
         && request.auth.uid in resource.data.participantUids
         && sameSchool(resource.data);
-      allow delete: if false;
+      allow delete: if canUseApp()
+        && request.auth.uid in resource.data.participantUids;
 
       match /messages/{messageId} {
         allow read: if canUseApp()
@@ -146,12 +161,17 @@ service cloud.firestore {
         allow create: if canUseApp()
           && request.resource.data.senderUid == request.auth.uid
           && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantUids;
-        allow update, delete: if false;
+        allow delete: if canUseApp()
+          && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantUids;
+        allow update: if false;
       }
     }
 
     match /ratings/{ratingId} {
       allow read: if canUseApp()
+        && (resource.data.reviewerUid == request.auth.uid
+          || resource.data.targetUid == request.auth.uid);
+      allow list: if canUseApp()
         && (resource.data.reviewerUid == request.auth.uid
           || resource.data.targetUid == request.auth.uid);
       allow create: if canUseApp()
@@ -171,7 +191,9 @@ service cloud.firestore {
         && resource.data.applied == false
         && request.resource.data.applied == true
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['applied']);
-      allow delete: if false;
+      allow delete: if canUseApp()
+        && (resource.data.reviewerUid == request.auth.uid
+          || resource.data.targetUid == request.auth.uid);
     }
   }
 }

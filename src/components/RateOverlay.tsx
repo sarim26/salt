@@ -19,8 +19,9 @@ export function RateOverlay() {
   };
 
   const handleSubmit = () => {
+    const selected = VIBES.filter((v) => vibes[v]);
     setVibes({});
-    submitRate();
+    submitRate(selected);
   };
 
   return (

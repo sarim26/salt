@@ -22,6 +22,7 @@ export function ProfileScreen() {
     showAura,
     uploadProfilePhoto,
     openSheet,
+    deletePost,
   } = useApp();
 
   const fileRef = useRef<HTMLInputElement>(null);
@@ -124,7 +125,7 @@ export function ProfileScreen() {
                 </div>
               )}
               {myPostHistory.map((p) => (
-                <MyPostHistoryCard key={p.id} post={p} />
+                <MyPostHistoryCard key={p.id} post={p} onDelete={deletePost} />
               ))}
             </>
           ) : (

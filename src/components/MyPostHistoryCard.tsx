@@ -3,9 +3,10 @@ import { fmt, tc } from '../utils/helpers';
 
 interface MyPostHistoryCardProps {
   post: Post;
+  onDelete?: (id: string) => void;
 }
 
-export function MyPostHistoryCard({ post: p }: MyPostHistoryCardProps) {
+export function MyPostHistoryCard({ post: p, onDelete }: MyPostHistoryCardProps) {
   const live = !p.expired && p.mins > 0;
 
   return (
@@ -38,6 +39,15 @@ export function MyPostHistoryCard({ post: p }: MyPostHistoryCardProps) {
         <div className="hist-loc">
           <i className="ti ti-map-pin" style={{ fontSize: 10 }} /> {p.loc}
         </div>
+      )}
+      {onDelete && (
+        <button
+          type="button"
+          className="hist-del"
+          onClick={() => onDelete(String(p.id))}
+        >
+          delete post
+        </button>
       )}
     </div>
   );

@@ -76,5 +76,6 @@ export interface RatingDoc {
   reviewerReward: number;
   schoolDomain: string;
   applied: boolean;
+  vibes?: string[];
   createdAt: Timestamp;
 }
