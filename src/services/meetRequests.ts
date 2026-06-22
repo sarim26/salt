@@ -63,7 +63,7 @@ export async function sendMeetRequest(
     posterUid: post.authorUid,
     requesterName: profile.displayName,
     requesterInitials: profile.initials,
-    schoolDomain: profile.schoolDomain,
+    schoolDomain: profile.schoolDomain.toLowerCase(),
     postPreview: preview,
     status: 'pending',
     createdAt: serverTimestamp(),

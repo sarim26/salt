@@ -179,8 +179,9 @@ service cloud.firestore {
     }
 
     match /meetRequests/{requestId} {
-      allow read: if canUseApp()
-        && (resource.data.requesterUid == request.auth.uid
+      allow get: if canUseApp()
+        && (!exists(/databases/$(database)/documents/meetRequests/$(requestId))
+          || resource.data.requesterUid == request.auth.uid
           || resource.data.posterUid == request.auth.uid);
       allow list: if canUseApp()
         && (resource.data.requesterUid == request.auth.uid
