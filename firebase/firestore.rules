@@ -81,10 +81,18 @@ service cloud.firestore {
           || request.resource.data.referredByUid == resource.data.referredByUid);
     }
 
+    function ownerStatsUpdate(uid) {
+      return isOwner(uid)
+        && canUseApp()
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.schoolDomain == resource.data.schoolDomain
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+
     match /users/{uid} {
       allow read: if isSignedIn() && (isOwner(uid) || sameSchool(resource.data));
       allow create: if validUserCreate(uid);
-      allow update: if ownerProfileUpdate(uid);
+      allow update: if ownerProfileUpdate(uid) || ownerStatsUpdate(uid);
       allow delete: if isOwner(uid) && canUseApp();
 
       match /auraEvents/{eventId} {
@@ -131,7 +139,10 @@ service cloud.firestore {
           && voteUid == request.auth.uid
           && request.resource.data.value in [1, -1]
           && sameSchool(get(/databases/$(database)/documents/posts/$(postId)).data);
-        allow delete: if canUseApp() && voteUid == request.auth.uid;
+        allow delete: if canUseApp() && (
+          voteUid == request.auth.uid
+          || get(/databases/$(database)/documents/posts/$(postId)).data.authorUid == request.auth.uid
+        );
       }
     }
 
@@ -173,7 +184,8 @@ service cloud.firestore {
           || resource.data.targetUid == request.auth.uid);
       allow list: if canUseApp()
         && (resource.data.reviewerUid == request.auth.uid
-          || resource.data.targetUid == request.auth.uid);
+          || resource.data.targetUid == request.auth.uid
+          || get(/databases/$(database)/documents/posts/$(resource.data.postId)).data.authorUid == request.auth.uid);
       allow create: if canUseApp()
         && callerSchoolOk()
         && ratingId == request.auth.uid + '_' + request.resource.data.postId
@@ -193,7 +205,8 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['applied']);
       allow delete: if canUseApp()
         && (resource.data.reviewerUid == request.auth.uid
-          || resource.data.targetUid == request.auth.uid);
+          || resource.data.targetUid == request.auth.uid
+          || get(/databases/$(database)/documents/posts/$(resource.data.postId)).data.authorUid == request.auth.uid);
     }
   }
 }

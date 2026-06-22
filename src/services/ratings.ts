@@ -33,7 +33,9 @@ export async function submitRating(
   if (!postSnap.exists()) throw new Error('Post not found');
   const postData = postSnap.data();
   if (postData.authorUid !== targetUid) throw new Error('Invalid post');
-  if (postData.schoolDomain !== profile.schoolDomain) throw new Error('Wrong campus');
+  if (postData.schoolDomain?.toLowerCase() !== profile.schoolDomain?.toLowerCase()) {
+    throw new Error('Wrong campus');
+  }
 
   const ratingId = `${reviewerUid}_${postId}`;
   const ratingRef = doc(db, 'ratings', ratingId);

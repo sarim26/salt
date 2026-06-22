@@ -139,13 +139,15 @@ export function PostCard({
               </button>
               {isOwnPost ? (
                 <span className="mbtn mbtn-own">YOUR POST</span>
+              ) : p.met ? (
+                <span className="mbtn mbtn-rated">RATED ✓</span>
               ) : (
                 <button
                   type="button"
-                  className={`mbtn${p.met ? ' active' : ''}`}
+                  className="mbtn"
                   onClick={() => onMeetUp(p.id)}
                 >
-                  {p.met ? 'RATED ✓' : 'MEET UP'}
+                  MEET UP
                 </button>
               )}
             </div>

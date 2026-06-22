@@ -29,6 +29,11 @@ export async function deleteUserFirestoreData(uid: string): Promise<void> {
   );
 
   for (const postDoc of postsSnap.docs) {
+    const ratingsOnPost = await getDocs(
+      query(collection(db, 'ratings'), where('postId', '==', postDoc.id))
+    );
+    await deleteInBatches(ratingsOnPost.docs.map((d) => d.ref));
+
     const votesSnap = await getDocs(collection(db, 'posts', postDoc.id, 'votes'));
     await deleteInBatches(votesSnap.docs.map((d) => d.ref));
     await deleteDoc(postDoc.ref);

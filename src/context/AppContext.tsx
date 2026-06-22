@@ -56,7 +56,7 @@ import type {
   Screen,
   User,
 } from '../types';
-import { firestoreErrorMessage } from '../utils/firestoreErrors';
+import { actionErrorMessage, firestoreErrorMessage } from '../utils/firestoreErrors';
 import { emailDomain } from '../utils/firestoreMappers';
 import { STARTING_AURA, POST_AURA_REWARD } from '../constants';
 import {
@@ -541,20 +541,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const p = posts.find((x) => x.id === id);
       if (!p) return;
 
-      if (firebaseUser && p.authorUid && p.authorUid === firebaseUser.uid) {
+      if (!firebaseUser) return;
+
+      if (p.authorUid && p.authorUid === firebaseUser.uid) {
         toast('YOU CANNOT RATE YOUR OWN POST');
         return;
       }
 
-      setMetPostIds((prev) => new Set(prev).add(id));
-      setPosts((prev) => prev.map((x) => (x.id === id ? { ...x, met: true } : x)));
+      if (!p.authorUid) {
+        toast('CANNOT RATE THIS POST');
+        return;
+      }
 
-      setTimeout(() => {
-        setRatePostId(id);
-        setStarV(0);
-        setRateWho(p.n.toUpperCase());
-        setRateOpen(true);
-      }, 400);
+      if (metPostIdsRef.current.has(id) || p.met) {
+        toast('ALREADY RATED THIS MEETUP');
+        return;
+      }
+
+      setRatePostId(id);
+      setStarV(0);
+      setRateWho(p.n.toUpperCase());
+      setRateOpen(true);
     },
     [posts, firebaseUser, toast]
   );
@@ -689,10 +696,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
           vibes
         );
         setMetPostIds((prev) => new Set(prev).add(ratePostId));
+        setPosts((prev) =>
+          prev.map((x) => (x.id === ratePostId ? { ...x, met: true } : x))
+        );
         setRateOpen(false);
+        setRatePostId(null);
+        setStarV(0);
         toast('RATING SUBMITTED');
       } catch (e) {
-        toast(e instanceof Error ? e.message : 'rating failed');
+        toast(actionErrorMessage(e, 'could not submit rating'));
       }
     },
     [starV, posts, ratePostId, toast, firebaseUser, profile]
@@ -705,8 +717,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         await deletePost(id, firebaseUser.uid);
         toast('POST DELETED');
       } catch (e) {
-        const msg = firestoreErrorMessage(e);
-        toast(msg || 'could not delete post');
+        toast(actionErrorMessage(e, 'could not delete post'));
       }
     },
     [firebaseUser, toast]

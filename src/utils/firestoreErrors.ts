@@ -21,3 +21,10 @@ export function firestoreErrorMessage(err: unknown): string | null {
   }
   return msg || 'something went wrong';
 }
+
+/** Always returns a user-visible message (for delete, rate, etc.). */
+export function actionErrorMessage(err: unknown, fallback: string): string {
+  if (isSilentFirestoreError(err)) return fallback;
+  const msg = firestoreErrorMessage(err);
+  return msg || fallback;
+}

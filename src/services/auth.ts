@@ -11,6 +11,7 @@ import {
 import { auth } from '../lib/firebase';
 import { ALLOWED_DOMAINS } from '../constants';
 import { deleteUserFirestoreData } from './account';
+import { actionErrorMessage } from '../utils/firestoreErrors';
 
 function parseAuthError(code: string): string {
   const map: Record<string, string> = {
@@ -111,7 +112,7 @@ export async function deleteAccount(password: string): Promise<void> {
     if (code.startsWith('auth/')) {
       throw new Error(parseAuthError(code));
     }
-    throw e instanceof Error ? e : new Error('could not delete account');
+    throw new Error(actionErrorMessage(e, 'could not delete account — try again'));
   }
 }
 

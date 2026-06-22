@@ -279,12 +279,33 @@ export async function deletePost(postId: string, uid: string): Promise<void> {
   const data = snap.data() as PostDoc;
   if (data.authorUid !== uid) throw new Error('Not your post');
 
+  const ratingsSnap = await getDocs(
+    query(collection(db, 'ratings'), where('postId', '==', postId))
+  );
   const votesSnap = await getDocs(collection(db, 'posts', postId, 'votes'));
-  const batch = writeBatch(db);
-  votesSnap.docs.forEach((d) => batch.delete(d.ref));
-  batch.delete(postRef);
-  batch.delete(doc(db, 'users', uid, 'voteIndex', postId));
-  await batch.commit();
+
+  const toDelete = [
+    ...ratingsSnap.docs.map((d) => d.ref),
+    ...votesSnap.docs.map((d) => d.ref),
+    postRef,
+    doc(db, 'users', uid, 'voteIndex', postId),
+  ];
+
+  for (let i = 0; i < toDelete.length; i += 450) {
+    const batch = writeBatch(db);
+    toDelete.slice(i, i + 450).forEach((ref) => batch.delete(ref));
+    await batch.commit();
+  }
+
+  const profileRef = doc(db, 'users', uid);
+  const profileSnap = await getDoc(profileRef);
+  if (profileSnap.exists()) {
+    const postCount = Math.max(0, (profileSnap.data().postCount || 1) - 1);
+    await updateDoc(profileRef, {
+      postCount,
+      updatedAt: serverTimestamp(),
+    });
+  }
 }
 
 function mapPost(
