@@ -10,6 +10,18 @@ export type Screen =
 
 export type FilterTab = 'all' | 'food' | 'trade' | 'hang';
 
+export type MeetStatus = 'none' | 'pending' | 'confirmed' | 'rated';
+
+export interface IncomingMeetRequest {
+  id: string;
+  postId: string;
+  requesterUid: string;
+  requesterName: string;
+  requesterInitials: string;
+  postPreview: string;
+  time: string;
+}
+
 export interface Post {
   id: string | number;
   authorUid?: string;
@@ -25,6 +37,7 @@ export interface Post {
   uv: number;
   reps: number;
   met: boolean;
+  meetStatus?: MeetStatus;
   expired?: boolean;
   postedAt?: string;
 }

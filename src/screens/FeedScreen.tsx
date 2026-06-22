@@ -23,6 +23,7 @@ export function FeedScreen() {
     getTagAff,
     vote,
     meetUp,
+    rateMeetUp,
     openChatFromPost,
     sharePost,
     firebaseUid,
@@ -129,6 +130,7 @@ export function FeedScreen() {
               currentUid={firebaseUid}
               onVote={vote}
               onMeetUp={meetUp}
+              onRateMeetUp={rateMeetUp}
               onOpenChat={openChatFromPost}
               onShare={sharePost}
             />

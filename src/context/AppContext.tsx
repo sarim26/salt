@@ -21,11 +21,19 @@ import {
 import {
   markChatRead,
   openChatFromPostAuthor,
+  openChatWithPeer,
   sendMessage,
   subscribeAuraEvents,
   subscribeChats,
   subscribeMessages,
 } from '../services/chats';
+import {
+  confirmMeetRequest,
+  declineMeetRequest,
+  sendMeetRequest,
+  subscribeIncomingMeetRequests,
+  subscribeOutgoingMeetRequests,
+} from '../services/meetRequests';
 import {
   createPost,
   deletePost,
@@ -51,11 +59,14 @@ import type {
   Chat,
   ChatMessage,
   FilterTab,
+  IncomingMeetRequest,
   LeaderboardUser,
+  MeetStatus,
   Post,
   Screen,
   User,
 } from '../types';
+import type { MeetRequestStatus } from '../types/firestore';
 import { actionErrorMessage, firestoreErrorMessage } from '../utils/firestoreErrors';
 import { emailDomain } from '../utils/firestoreMappers';
 import { STARTING_AURA, POST_AURA_REWARD } from '../constants';
@@ -91,6 +102,10 @@ interface AppContextValue {
   toastVisible: boolean;
   sheetOpen: boolean;
   rateOpen: boolean;
+  meetConfirmOpen: boolean;
+  meetConfirmWho: string;
+  meetConfirmSending: boolean;
+  incomingMeetRequests: IncomingMeetRequest[];
   ratePostId: string | number | null;
   rateWho: string;
   starV: number;
@@ -119,6 +134,12 @@ interface AppContextValue {
   doTabAndGo: (f: FilterTab) => void;
   vote: (id: string | number, d: number) => void;
   meetUp: (id: string | number) => void;
+  rateMeetUp: (id: string | number) => void;
+  cancelMeetConfirm: () => void;
+  confirmSendMeetRequest: () => void;
+  confirmMeet: (requestId: string) => void;
+  declineMeet: (requestId: string) => void;
+  openChatWithPeer: (peerUid: string, postId: string) => void;
   openChatFromPost: (id: string | number) => void;
   sharePost: (id: string | number) => void;
   openChatD: (id: string | number) => void;
@@ -137,6 +158,33 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null);
 
 const INITIAL_BADGES = new Set(['verified student']);
+
+function resolveMeetStatus(
+  postId: string | number,
+  rated: Set<string | number>,
+  outgoing: Record<string, MeetRequestStatus>
+): MeetStatus {
+  if (rated.has(postId)) return 'rated';
+  const status = outgoing[String(postId)];
+  if (status === 'pending') return 'pending';
+  if (status === 'confirmed') return 'confirmed';
+  return 'none';
+}
+
+function withMeetStatus(
+  posts: Post[],
+  rated: Set<string | number>,
+  outgoing: Record<string, MeetRequestStatus>
+): Post[] {
+  return posts.map((p) => {
+    const meetStatus = resolveMeetStatus(p.id, rated, outgoing);
+    return {
+      ...p,
+      meetStatus,
+      met: meetStatus === 'rated',
+    };
+  });
+}
 
 function profileToUser(profile: UserProfile): User {
   const uni = UNIVERSITIES[profile.schoolDomain];
@@ -173,6 +221,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [myPosts, setMyPosts] = useState(0);
   const [myMeets, setMyMeets] = useState(0);
   const [metPostIds, setMetPostIds] = useState<Set<string | number>>(new Set());
+  const [myMeetByPost, setMyMeetByPost] = useState<Record<string, MeetRequestStatus>>({});
+  const [incomingMeetRequests, setIncomingMeetRequests] = useState<IncomingMeetRequest[]>([]);
   const [aHist, setAHist] = useState<AuraHistoryItem[]>([]);
   const [earnedBdg, setEarnedBdg] = useState<Set<string>>(new Set(INITIAL_BADGES));
   const [curChat, setCurChat] = useState<string | number | null>(null);
@@ -183,6 +233,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [toastVisible, setToastVisible] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [rateOpen, setRateOpen] = useState(false);
+  const [meetConfirmOpen, setMeetConfirmOpen] = useState(false);
+  const [meetConfirmPostId, setMeetConfirmPostId] = useState<string | number | null>(null);
+  const [meetConfirmWho, setMeetConfirmWho] = useState('');
+  const [meetConfirmSending, setMeetConfirmSending] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -198,7 +252,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const sessionGenRef = useRef(0);
   const voteIndexRef = useRef<Record<string, 1 | -1>>({});
   const metPostIdsRef = useRef(metPostIds);
+  const myMeetByPostRef = useRef(myMeetByPost);
   metPostIdsRef.current = metPostIds;
+  myMeetByPostRef.current = myMeetByPost;
 
   const toast = useCallback((m: string) => {
     setToastMsg(m);
@@ -220,6 +276,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setMyPosts(0);
     setMyMeets(0);
     setMetPostIds(new Set());
+    setMyMeetByPost({});
+    setIncomingMeetRequests([]);
+    setMeetConfirmOpen(false);
+    setMeetConfirmPostId(null);
+    setMeetConfirmWho('');
     setAHist([]);
     setEarnedBdg(new Set(INITIAL_BADGES));
     setCurChat(null);
@@ -421,6 +482,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
           },
           onErr
         ),
+        subscribeOutgoingMeetRequests(
+          uid,
+          (byPost) => {
+            setMyMeetByPost(byPost);
+          },
+          (_postId, from, to) => {
+            if (from === 'pending' && to === 'confirmed') {
+              toast('MEET CONFIRMED — RATE YOUR MEETUP');
+            }
+          },
+          onErr
+        ),
+        subscribeIncomingMeetRequests(uid, setIncomingMeetRequests, onErr),
         subscribeFeed(
           domain,
           () => voteIndexRef.current,
@@ -430,10 +504,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
               const next = feedPosts.map((p) => ({
                 ...p,
                 uv: votes[String(p.id)] ?? 0,
-                met: metPostIdsRef.current.has(p.id),
               }));
-              if (next.length === 0 && prev.length > 0) return prev;
-              return next;
+              const merged = withMeetStatus(
+                next,
+                metPostIdsRef.current,
+                myMeetByPostRef.current
+              );
+              if (merged.length === 0 && prev.length > 0) return prev;
+              return merged;
             });
           },
           onErr
@@ -454,13 +532,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [firebaseUser?.uid, profile?.schoolDomain, profile?.email, toast]);
 
   useEffect(() => {
-    setPosts((prev) =>
-      prev.map((p) => ({
-        ...p,
-        met: metPostIds.has(p.id),
-      }))
-    );
-  }, [metPostIds]);
+    setPosts((prev) => withMeetStatus(prev, metPostIds, myMeetByPost));
+  }, [metPostIds, myMeetByPost]);
+
+  const incomingNotifiedRef = useRef(false);
+  useEffect(() => {
+    if (!firestoreReady || incomingNotifiedRef.current) return;
+    if (incomingMeetRequests.length > 0) {
+      incomingNotifiedRef.current = true;
+      toast(
+        `${incomingMeetRequests.length} MEET REQUEST${incomingMeetRequests.length > 1 ? 'S' : ''} — CHECK CHATS`
+      );
+    }
+  }, [incomingMeetRequests.length, firestoreReady, toast]);
 
   useEffect(() => {
     if (!profile || !firebaseUser?.uid) return;
@@ -544,26 +628,127 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!firebaseUser) return;
 
       if (p.authorUid && p.authorUid === firebaseUser.uid) {
-        toast('YOU CANNOT RATE YOUR OWN POST');
+        toast('YOU CANNOT MEET ON YOUR OWN POST');
         return;
       }
 
       if (!p.authorUid) {
-        toast('CANNOT RATE THIS POST');
+        toast('CANNOT MEET ON THIS POST');
         return;
       }
 
-      if (metPostIdsRef.current.has(id) || p.met) {
+      if (metPostIdsRef.current.has(id) || p.meetStatus === 'rated') {
         toast('ALREADY RATED THIS MEETUP');
         return;
       }
 
+      if (p.meetStatus === 'pending') {
+        toast('REQUEST ALREADY SENT');
+        return;
+      }
+
+      if (p.meetStatus === 'confirmed') {
+        setRatePostId(id);
+        setStarV(0);
+        setRateWho(p.n.toUpperCase());
+        setRateOpen(true);
+        return;
+      }
+
+      setMeetConfirmPostId(id);
+      setMeetConfirmWho(p.n.toUpperCase());
+      setMeetConfirmOpen(true);
+    },
+    [posts, firebaseUser, toast]
+  );
+
+  const rateMeetUp = useCallback(
+    (id: string | number) => {
+      const p = posts.find((x) => x.id === id);
+      if (!p) return;
+      if (!firebaseUser) return;
+      if (p.meetStatus !== 'confirmed') {
+        toast('WAIT FOR THEM TO CONFIRM THE MEETUP');
+        return;
+      }
       setRatePostId(id);
       setStarV(0);
       setRateWho(p.n.toUpperCase());
       setRateOpen(true);
     },
     [posts, firebaseUser, toast]
+  );
+
+  const cancelMeetConfirm = useCallback(() => {
+    if (meetConfirmSending) return;
+    setMeetConfirmOpen(false);
+    setMeetConfirmPostId(null);
+    setMeetConfirmWho('');
+  }, [meetConfirmSending]);
+
+  const confirmSendMeetRequest = useCallback(async () => {
+    const id = meetConfirmPostId;
+    const p = id != null ? posts.find((x) => x.id === id) : null;
+    if (!p || !firebaseUser || !profile) return;
+
+    setMeetConfirmSending(true);
+    try {
+      await sendMeetRequest(firebaseUser.uid, profile, p);
+      setMeetConfirmOpen(false);
+      setMeetConfirmPostId(null);
+      setMeetConfirmWho('');
+      toast('REQUEST SENT ✓');
+    } catch (e) {
+      toast(actionErrorMessage(e, 'could not send meet request'));
+    } finally {
+      setMeetConfirmSending(false);
+    }
+  }, [meetConfirmPostId, posts, firebaseUser, profile, toast]);
+
+  const confirmMeet = useCallback(
+    async (requestId: string) => {
+      if (!firebaseUser) return;
+      try {
+        await confirmMeetRequest(requestId, firebaseUser.uid);
+        toast('MEET CONFIRMED');
+      } catch (e) {
+        toast(actionErrorMessage(e, 'could not confirm meet'));
+      }
+    },
+    [firebaseUser, toast]
+  );
+
+  const declineMeet = useCallback(
+    async (requestId: string) => {
+      if (!firebaseUser) return;
+      try {
+        await declineMeetRequest(requestId, firebaseUser.uid);
+        toast('REQUEST DISMISSED');
+      } catch (e) {
+        toast(actionErrorMessage(e, 'could not dismiss request'));
+      }
+    },
+    [firebaseUser, toast]
+  );
+
+  const handleOpenChatWithPeer = useCallback(
+    async (peerUid: string, postId: string) => {
+      if (!firebaseUser || !profile) return;
+      try {
+        const chatId = await openChatWithPeer(
+          firebaseUser.uid,
+          profile,
+          peerUid,
+          postId
+        );
+        setCurChat(chatId);
+        setScreen('chat-detail');
+      } catch (e) {
+        const msg = firestoreErrorMessage(e);
+        if (msg) toast(msg);
+      }
+    },
+    [firebaseUser, profile, toast]
   );
 
   const sharePost = useCallback(
@@ -686,6 +871,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setRateOpen(false);
         return;
       }
+      if (p.meetStatus !== 'confirmed' && !metPostIdsRef.current.has(ratePostId)) {
+        toast('MEET MUST BE CONFIRMED BEFORE RATING');
+        setRateOpen(false);
+        return;
+      }
       try {
         await submitRating(
           firebaseUser.uid,
@@ -697,7 +887,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         );
         setMetPostIds((prev) => new Set(prev).add(ratePostId));
         setPosts((prev) =>
-          prev.map((x) => (x.id === ratePostId ? { ...x, met: true } : x))
+          prev.map((x) =>
+            x.id === ratePostId
+              ? { ...x, met: true, meetStatus: 'rated' as const }
+              : x
+          )
         );
         setRateOpen(false);
         setRatePostId(null);
@@ -766,6 +960,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toastVisible,
     sheetOpen,
     rateOpen,
+    meetConfirmOpen,
+    meetConfirmWho,
+    meetConfirmSending,
+    incomingMeetRequests,
     ratePostId,
     rateWho,
     starV,
@@ -794,6 +992,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     doTabAndGo,
     vote,
     meetUp,
+    rateMeetUp,
+    cancelMeetConfirm,
+    confirmSendMeetRequest,
+    confirmMeet,
+    declineMeet,
+    openChatWithPeer: handleOpenChatWithPeer,
     openChatFromPost,
     sharePost,
     openChatD,

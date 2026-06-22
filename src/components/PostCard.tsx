@@ -10,6 +10,7 @@ interface PostCardProps {
   compact?: boolean;
   onVote: (id: string | number, d: number) => void;
   onMeetUp: (id: string | number) => void;
+  onRateMeetUp: (id: string | number) => void;
   onOpenChat: (id: string | number) => void;
   onShare: (id: string | number) => void;
 }
@@ -22,6 +23,7 @@ export function PostCard({
   compact,
   onVote,
   onMeetUp,
+  onRateMeetUp,
   onOpenChat,
   onShare,
 }: PostCardProps) {
@@ -139,8 +141,18 @@ export function PostCard({
               </button>
               {isOwnPost ? (
                 <span className="mbtn mbtn-own">YOUR POST</span>
-              ) : p.met ? (
+              ) : p.meetStatus === 'rated' || p.met ? (
                 <span className="mbtn mbtn-rated">RATED ✓</span>
+              ) : p.meetStatus === 'pending' ? (
+                <span className="mbtn mbtn-pending">REQUEST SENT ✓</span>
+              ) : p.meetStatus === 'confirmed' ? (
+                <button
+                  type="button"
+                  className="mbtn mbtn-ready"
+                  onClick={() => onRateMeetUp(p.id)}
+                >
+                  RATE MEETUP
+                </button>
               ) : (
                 <button
                   type="button"

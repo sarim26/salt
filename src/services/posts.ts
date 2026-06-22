@@ -21,6 +21,7 @@ import type { PostDoc, UserProfile } from '../types/firestore';
 import type { LeaderboardUser, Post } from '../types';
 import { POST_AURA_REWARD } from '../constants';
 import { expiresAtToMins, formatRelativeTime, emailDomain, isAllowedDomain } from '../utils/firestoreMappers';
+import { deleteMeetRequestsForPost } from './meetRequests';
 import { ensureUserProfile } from './users';
 
 const POST_TTL_MS = 24 * 60 * 60 * 1000;
@@ -296,6 +297,8 @@ export async function deletePost(postId: string, uid: string): Promise<void> {
     toDelete.slice(i, i + 450).forEach((ref) => batch.delete(ref));
     await batch.commit();
   }
+
+  await deleteMeetRequestsForPost(postId);
 
   const profileRef = doc(db, 'users', uid);
   const profileSnap = await getDoc(profileRef);

@@ -178,6 +178,48 @@ service cloud.firestore {
       }
     }
 
+    match /meetRequests/{requestId} {
+      allow read: if canUseApp()
+        && (resource.data.requesterUid == request.auth.uid
+          || resource.data.posterUid == request.auth.uid);
+      allow list: if canUseApp()
+        && (resource.data.requesterUid == request.auth.uid
+          || resource.data.posterUid == request.auth.uid);
+      allow create: if canUseApp()
+        && requestId == request.resource.data.requesterUid + '_' + request.resource.data.postId
+        && request.resource.data.requesterUid == request.auth.uid
+        && request.resource.data.posterUid != request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.schoolDomain.lower() == callerSchool()
+        && request.resource.data.posterUid
+          == get(/databases/$(database)/documents/posts/$(request.resource.data.postId)).data.authorUid
+        && sameSchool(get(/databases/$(database)/documents/posts/$(request.resource.data.postId)).data)
+        && !exists(/databases/$(database)/documents/meetRequests/$(requestId));
+      allow update: if canUseApp() && (
+        (resource.data.posterUid == request.auth.uid
+          && resource.data.status == 'pending'
+          && request.resource.data.status == 'confirmed'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'confirmedAt']))
+        || (resource.data.posterUid == request.auth.uid
+          && resource.data.status == 'pending'
+          && request.resource.data.status == 'declined'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']))
+        || (resource.data.requesterUid == request.auth.uid
+          && resource.data.status == 'declined'
+          && request.resource.data.status == 'pending'
+          && request.resource.data.requesterUid == resource.data.requesterUid
+          && request.resource.data.posterUid == resource.data.posterUid
+          && request.resource.data.postId == resource.data.postId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'requesterName', 'requesterInitials', 'postPreview', 'createdAt'
+          ]))
+      );
+      allow delete: if canUseApp()
+        && (resource.data.requesterUid == request.auth.uid
+          || resource.data.posterUid == request.auth.uid
+          || get(/databases/$(database)/documents/posts/$(resource.data.postId)).data.authorUid == request.auth.uid);
+    }
+
     match /ratings/{ratingId} {
       allow read: if canUseApp()
         && (resource.data.reviewerUid == request.auth.uid

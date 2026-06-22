@@ -24,6 +24,7 @@ export function ExploreScreen() {
     showAura,
     vote,
     meetUp,
+    rateMeetUp,
     openChatFromPost,
     sharePost,
     firebaseUid,
@@ -77,6 +78,7 @@ export function ExploreScreen() {
                   currentUid={firebaseUid}
                   onVote={vote}
                   onMeetUp={meetUp}
+                  onRateMeetUp={rateMeetUp}
                   onOpenChat={openChatFromPost}
                   onShare={sharePost}
                 />

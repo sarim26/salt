@@ -9,6 +9,7 @@ import {
   type DocumentReference,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { deleteMeetRequestsForUser } from './meetRequests';
 
 const BATCH_LIMIT = 400;
 
@@ -64,6 +65,8 @@ export async function deleteUserFirestoreData(uid: string): Promise<void> {
 
   const voteIndexSnap = await getDocs(collection(db, 'users', uid, 'voteIndex'));
   await deleteInBatches(voteIndexSnap.docs.map((d) => d.ref));
+
+  await deleteMeetRequestsForUser(uid);
 
   await deleteDoc(doc(db, 'users', uid));
 }

@@ -13,6 +13,7 @@ import {
 import { db } from '../lib/firebase';
 import type { Post } from '../types';
 import type { UserProfile } from '../types/firestore';
+import { requireConfirmedMeetRequest } from './meetRequests';
 import { auraGiven } from '../utils/helpers';
 
 export async function submitRating(
@@ -43,6 +44,8 @@ export async function submitRating(
   if (existing.exists()) {
     throw new Error('You already rated this meetup');
   }
+
+  await requireConfirmedMeetRequest(reviewerUid, postId);
 
   const prior = profile.meetCounts?.[targetUid] || 0;
   const given = auraGiven(stars, targetUid, profile.meetCounts || {});

@@ -66,6 +66,14 @@
         { "fieldPath": "participantUids", "arrayConfig": "CONTAINS" },
         { "fieldPath": "lastAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "meetRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "posterUid", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

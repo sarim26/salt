@@ -9,9 +9,12 @@ const NAV_ITEMS: { id: Screen; icon: string; label: string }[] = [
 ];
 
 export function BottomNav() {
-  const { screen, goScreen, openSheet, user } = useApp();
+  const { screen, goScreen, openSheet, user, incomingMeetRequests, chats } = useApp();
 
   if (!user) return null;
+
+  const chatBadge =
+    incomingMeetRequests.length > 0 || chats.some((c) => c.unread);
 
   return (
     <div className="bnav" id="bnav">
@@ -40,6 +43,7 @@ export function BottomNav() {
         >
           <i className={`ti ${item.icon}`} />
           {item.label}
+          {item.id === 'chats' && chatBadge && <span className="nav-badge" />}
         </button>
       ))}
     </div>

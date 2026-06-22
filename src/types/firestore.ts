@@ -79,3 +79,18 @@ export interface RatingDoc {
   vibes?: string[];
   createdAt: Timestamp;
 }
+
+export type MeetRequestStatus = 'pending' | 'confirmed' | 'declined';
+
+export interface MeetRequestDoc {
+  postId: string;
+  requesterUid: string;
+  posterUid: string;
+  requesterName: string;
+  requesterInitials: string;
+  schoolDomain: string;
+  postPreview: string;
+  status: MeetRequestStatus;
+  createdAt: Timestamp;
+  confirmedAt?: Timestamp;
+}

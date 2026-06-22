@@ -143,6 +143,19 @@ export async function openChatWithUser(
   return id;
 }
 
+export async function openChatWithPeer(
+  myUid: string,
+  myProfile: UserProfile,
+  peerUid: string,
+  sourcePostId?: string | null
+): Promise<string> {
+  if (!db) throw new Error('Firebase not configured');
+  const peerSnap = await getDoc(doc(db, 'users', peerUid));
+  if (!peerSnap.exists()) throw new Error('User not found');
+  const peer = peerSnap.data() as UserProfile;
+  return openChatWithUser(myUid, myProfile, peerUid, peer, sourcePostId);
+}
+
 export async function openChatFromPostAuthor(
   myUid: string,
   myProfile: UserProfile,
