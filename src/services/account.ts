@@ -9,7 +9,7 @@ import {
   type DocumentReference,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { deleteMeetRequestsForUser } from './meetRequests';
+import { deleteMeetRequestsForPost, deleteMeetRequestsForUser } from './meetRequests';
 
 const BATCH_LIMIT = 400;
 
@@ -31,13 +31,18 @@ export async function deleteUserFirestoreData(uid: string): Promise<void> {
 
   for (const postDoc of postsSnap.docs) {
     const ratingsOnPost = await getDocs(
-      query(collection(db, 'ratings'), where('postId', '==', postDoc.id))
+      query(
+        collection(db, 'ratings'),
+        where('postId', '==', postDoc.id),
+        where('targetUid', '==', uid)
+      )
     );
     await deleteInBatches(ratingsOnPost.docs.map((d) => d.ref));
 
     const votesSnap = await getDocs(collection(db, 'posts', postDoc.id, 'votes'));
     await deleteInBatches(votesSnap.docs.map((d) => d.ref));
     await deleteDoc(postDoc.ref);
+    await deleteMeetRequestsForPost(postDoc.id, uid);
   }
 
   const reviewerRatings = await getDocs(

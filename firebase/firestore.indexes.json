@@ -74,6 +74,22 @@
         { "fieldPath": "posterUid", "order": "ASCENDING" },
         { "fieldPath": "status", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "meetRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "posterUid", "order": "ASCENDING" },
+        { "fieldPath": "postId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "ratings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "postId", "order": "ASCENDING" },
+        { "fieldPath": "targetUid", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

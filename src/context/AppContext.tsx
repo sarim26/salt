@@ -104,6 +104,7 @@ interface AppContextValue {
   rateOpen: boolean;
   meetConfirmOpen: boolean;
   meetConfirmWho: string;
+  meetConfirmError: string;
   meetConfirmSending: boolean;
   incomingMeetRequests: IncomingMeetRequest[];
   ratePostId: string | number | null;
@@ -234,9 +235,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [rateOpen, setRateOpen] = useState(false);
   const [meetConfirmOpen, setMeetConfirmOpen] = useState(false);
-  const [meetConfirmPostId, setMeetConfirmPostId] = useState<string | number | null>(null);
+  const [meetConfirmPost, setMeetConfirmPost] = useState<Post | null>(null);
   const [meetConfirmWho, setMeetConfirmWho] = useState('');
+  const [meetConfirmError, setMeetConfirmError] = useState('');
   const [meetConfirmSending, setMeetConfirmSending] = useState(false);
+  const profileRef = useRef<UserProfile | null>(null);
+  profileRef.current = profile;
   const [loginError, setLoginError] = useState('');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -279,8 +283,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setMyMeetByPost({});
     setIncomingMeetRequests([]);
     setMeetConfirmOpen(false);
-    setMeetConfirmPostId(null);
+    setMeetConfirmPost(null);
     setMeetConfirmWho('');
+    setMeetConfirmError('');
     setAHist([]);
     setEarnedBdg(new Set(INITIAL_BADGES));
     setCurChat(null);
@@ -655,8 +660,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      setMeetConfirmPostId(id);
+      setMeetConfirmPost(p);
       setMeetConfirmWho(p.n.toUpperCase());
+      setMeetConfirmError('');
       setMeetConfirmOpen(true);
     },
     [posts, firebaseUser, toast]
@@ -682,28 +688,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const cancelMeetConfirm = useCallback(() => {
     if (meetConfirmSending) return;
     setMeetConfirmOpen(false);
-    setMeetConfirmPostId(null);
+    setMeetConfirmPost(null);
     setMeetConfirmWho('');
+    setMeetConfirmError('');
   }, [meetConfirmSending]);
 
   const confirmSendMeetRequest = useCallback(async () => {
-    const id = meetConfirmPostId;
-    const p = id != null ? posts.find((x) => x.id === id) : null;
-    if (!p || !firebaseUser || !profile) return;
+    const p = meetConfirmPost;
+    const activeProfile = profileRef.current;
+    if (!p || !firebaseUser || !activeProfile) {
+      const msg = !activeProfile
+        ? 'profile still loading — try again in a moment'
+        : 'post not found — refresh the feed and try again';
+      setMeetConfirmError(msg);
+      toast(msg);
+      return;
+    }
 
+    setMeetConfirmError('');
     setMeetConfirmSending(true);
     try {
-      await sendMeetRequest(firebaseUser.uid, profile, p);
+      await sendMeetRequest(firebaseUser.uid, activeProfile, p);
       setMeetConfirmOpen(false);
-      setMeetConfirmPostId(null);
+      setMeetConfirmPost(null);
       setMeetConfirmWho('');
       toast('REQUEST SENT ✓');
     } catch (e) {
-      toast(actionErrorMessage(e, 'could not send meet request'));
+      const msg = actionErrorMessage(e, 'could not send meet request');
+      setMeetConfirmError(msg);
+      toast(msg);
     } finally {
       setMeetConfirmSending(false);
     }
-  }, [meetConfirmPostId, posts, firebaseUser, profile, toast]);
+  }, [meetConfirmPost, firebaseUser, toast]);
 
   const confirmMeet = useCallback(
     async (requestId: string) => {
@@ -962,6 +979,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     rateOpen,
     meetConfirmOpen,
     meetConfirmWho,
+    meetConfirmError,
     meetConfirmSending,
     incomingMeetRequests,
     ratePostId,

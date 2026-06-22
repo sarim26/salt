@@ -1,8 +1,14 @@
 import { useApp } from '../context/AppContext';
 
 export function MeetConfirmOverlay() {
-  const { meetConfirmOpen, meetConfirmWho, cancelMeetConfirm, confirmSendMeetRequest, meetConfirmSending } =
-    useApp();
+  const {
+    meetConfirmOpen,
+    meetConfirmWho,
+    meetConfirmError,
+    cancelMeetConfirm,
+    confirmSendMeetRequest,
+    meetConfirmSending,
+  } = useApp();
 
   return (
     <div className={`rate-ov${meetConfirmOpen ? ' open' : ''}`} id="meet-confirm">
@@ -14,10 +20,13 @@ export function MeetConfirmOverlay() {
         <p className="meet-confirm-note">
           they&apos;ll get a chat message and can confirm once you meet in person.
         </p>
+        {meetConfirmError ? (
+          <p className="meet-confirm-err">{meetConfirmError}</p>
+        ) : null}
         <button
           type="button"
           className="rgo"
-          onClick={confirmSendMeetRequest}
+          onClick={() => void confirmSendMeetRequest()}
           disabled={meetConfirmSending}
         >
           {meetConfirmSending ? 'SENDING...' : 'SEND REQUEST →'}

@@ -31,8 +31,6 @@ export function FeedScreen() {
     openSheetWith,
     showAura,
     goScreen,
-    toastMsg,
-    toastVisible,
   } = useApp();
 
   if (!user) return null;
@@ -108,10 +106,6 @@ export function FeedScreen() {
             {TAB_LABELS[f]}
           </button>
         ))}
-      </div>
-      <div className={`toast${toastVisible ? ' show' : ''}`}>
-        <i className="ti ti-sparkles" style={{ fontSize: 13, color: '#3DA882' }} />
-        <span className="toast-msg">{toastMsg}</span>
       </div>
       <div className="scroll" id="feed">
         {!sorted.length ? (

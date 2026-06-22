@@ -179,10 +179,14 @@ export function subscribeIncomingMeetRequests(
   );
 }
 
-export async function deleteMeetRequestsForPost(postId: string): Promise<void> {
+export async function deleteMeetRequestsForPost(postId: string, posterUid: string): Promise<void> {
   if (!db) return;
   const snap = await getDocs(
-    query(collection(db, 'meetRequests'), where('postId', '==', postId))
+    query(
+      collection(db, 'meetRequests'),
+      where('posterUid', '==', posterUid),
+      where('postId', '==', postId)
+    )
   );
   for (let i = 0; i < snap.docs.length; i += 450) {
     const batch = writeBatch(db);

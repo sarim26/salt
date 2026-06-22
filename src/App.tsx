@@ -2,6 +2,7 @@ import { AppProvider, useApp } from './context/AppContext';
 import { BottomNav } from './components/BottomNav';
 import { PostSheet } from './components/PostSheet';
 import { MeetConfirmOverlay } from './components/MeetConfirmOverlay';
+import { GlobalToast } from './components/GlobalToast';
 import { RateOverlay } from './components/RateOverlay';
 import { LoginScreen } from './screens/LoginScreen';
 import { FeedScreen } from './screens/FeedScreen';
@@ -82,6 +83,7 @@ function AppShell() {
       ))}
       {user && (
         <>
+          <GlobalToast />
           <PostSheet />
           <MeetConfirmOverlay />
           <RateOverlay />

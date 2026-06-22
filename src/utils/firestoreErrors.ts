@@ -24,7 +24,10 @@ export function firestoreErrorMessage(err: unknown): string | null {
 
 /** Always returns a user-visible message (for delete, rate, etc.). */
 export function actionErrorMessage(err: unknown, fallback: string): string {
-  if (isSilentFirestoreError(err)) return fallback;
+  const code = (err as { code?: string }).code || '';
+  if (code === 'permission-denied') {
+    return `${fallback} (permission denied — try signing out and back in)`;
+  }
   const msg = firestoreErrorMessage(err);
   return msg || fallback;
 }

@@ -281,7 +281,11 @@ export async function deletePost(postId: string, uid: string): Promise<void> {
   if (data.authorUid !== uid) throw new Error('Not your post');
 
   const ratingsSnap = await getDocs(
-    query(collection(db, 'ratings'), where('postId', '==', postId))
+    query(
+      collection(db, 'ratings'),
+      where('postId', '==', postId),
+      where('targetUid', '==', uid)
+    )
   );
   const votesSnap = await getDocs(collection(db, 'posts', postId, 'votes'));
 
@@ -298,7 +302,7 @@ export async function deletePost(postId: string, uid: string): Promise<void> {
     await batch.commit();
   }
 
-  await deleteMeetRequestsForPost(postId);
+  await deleteMeetRequestsForPost(postId, uid);
 
   const profileRef = doc(db, 'users', uid);
   const profileSnap = await getDoc(profileRef);
