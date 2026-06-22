@@ -6,18 +6,15 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
-    environment: github-pages
     env:
       VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
       VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
@@ -56,24 +53,30 @@ jobs:
           fi
           echo "All Firebase secrets present"
 
-      - name: Build
+      - name: Build production bundle
         run: npm run build
 
-      - name: SPA fallback for GitHub Pages
-        run: cp dist/index.html dist/404.html
+      - name: Verify production bundle
+        run: |
+          if grep -q 'src/main.tsx' dist/index.html; then
+            echo "::error::dist/index.html still references src/main.tsx — build is not production-ready"
+            exit 1
+          fi
+          if ! grep -q '/assets/' dist/index.html; then
+            echo "::error::dist/index.html missing bundled /assets/ scripts"
+            exit 1
+          fi
+          echo "Production bundle OK"
 
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Prepare GitHub Pages output
+        run: |
+          cp dist/index.html dist/404.html
+          test -f dist/.nojekyll || touch dist/.nojekyll
+
+      - name: Deploy to gh-pages branch
+        uses: JamesIves/github-pages-deploy-action@v4
         with:
-          path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          folder: dist
+          branch: gh-pages
+          clean: true
+          single-commit: true
