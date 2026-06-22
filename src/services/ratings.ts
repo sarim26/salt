@@ -40,12 +40,13 @@ export async function submitRating(
 
   const ratingId = `${reviewerUid}_${postId}`;
   const ratingRef = doc(db, 'ratings', ratingId);
+
+  await requireConfirmedMeetRequest(reviewerUid, postId);
+
   const existing = await getDoc(ratingRef);
   if (existing.exists()) {
     throw new Error('You already rated this meetup');
   }
-
-  await requireConfirmedMeetRequest(reviewerUid, postId);
 
   const prior = profile.meetCounts?.[targetUid] || 0;
   const given = auraGiven(stars, targetUid, profile.meetCounts || {});
@@ -69,7 +70,7 @@ export async function submitRating(
     stars,
     auraGiven: given,
     reviewerReward: 0,
-    schoolDomain: profile.schoolDomain,
+    schoolDomain: profile.schoolDomain.toLowerCase(),
     applied: false,
     vibes: vibes.length ? vibes : [],
     createdAt: serverTimestamp(),

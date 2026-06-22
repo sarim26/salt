@@ -222,8 +222,9 @@ service cloud.firestore {
     }
 
     match /ratings/{ratingId} {
-      allow read: if canUseApp()
-        && (resource.data.reviewerUid == request.auth.uid
+      allow get: if canUseApp()
+        && (!exists(/databases/$(database)/documents/ratings/$(ratingId))
+          || resource.data.reviewerUid == request.auth.uid
           || resource.data.targetUid == request.auth.uid);
       allow list: if canUseApp()
         && (resource.data.reviewerUid == request.auth.uid
