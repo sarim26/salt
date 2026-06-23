@@ -13,6 +13,8 @@ export interface PostComment {
   av: number;
   photoUrl: string | null;
   time: string;
+  parentId: string | null;
+  replyToName: string | null;
 }
 
 /** @deprecated legacy meet-request type — kept for cleanup service */

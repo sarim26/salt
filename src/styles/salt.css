@@ -54,16 +54,26 @@ body{background-color:var(--bg);background-image:linear-gradient(var(--grid) 1px
 .cthread{margin-top:8px;border-top:1px solid var(--border2);padding-top:8px}
 .cempty{font-size:11px;color:var(--dim);font-family:var(--fm);padding:6px 0}
 .citem{display:flex;gap:8px;margin-bottom:10px}
+.cthread-group{margin-bottom:4px}
+.creplies{margin-left:20px;padding-left:12px;border-left:2px solid var(--border2)}
+.citem-reply{margin-bottom:8px}
 .cavi-sm{width:28px!important;height:28px!important;font-size:10px!important}
 .cbody{flex:1;min-width:0}
 .cname{font-family:var(--fh);font-size:11px;font-weight:700;text-transform:uppercase;display:flex;align-items:center;gap:6px}
 .cjoined{font-size:9px;color:var(--teal);border:1px solid var(--teal);padding:1px 5px}
+.creply-to{font-size:10px;color:var(--dim);margin-bottom:2px;font-family:var(--fm)}
+.creply-to span{color:var(--teal)}
 .ctext{font-size:12px;color:var(--cream);font-family:var(--fm);line-height:1.45;margin-top:2px}
 .cmeta{display:flex;align-items:center;gap:8px;margin-top:4px;font-size:10px;color:var(--dim);font-family:var(--fm)}
 .cact{background:transparent;border:none;font-family:var(--fh);font-size:10px;font-weight:700;text-transform:uppercase;cursor:pointer;padding:0}
 .cact.add{color:var(--teal)}
 .cact.rem{color:var(--red)}
-.ccompose{display:flex;gap:6px;margin-top:8px}
+.cact.reply{color:var(--muted)}
+.creply-banner{display:flex;align-items:center;justify-content:space-between;font-size:10px;color:var(--dim);margin-bottom:6px;padding:4px 8px;background:var(--bg);border:1px solid var(--border2);border-radius:0;font-family:var(--fm)}
+.creply-banner strong{color:var(--teal);font-family:var(--fh)}
+.creply-cancel{background:none;border:none;color:var(--muted);font-size:10px;cursor:pointer;text-transform:uppercase;font-family:var(--fh)}
+.ccompose{display:flex;flex-direction:column;margin-top:8px}
+.ccompose-row{display:flex;gap:6px}
 .cinp{flex:1;background:var(--bg);border:1px solid var(--border2);padding:8px 10px;font-family:var(--fm);font-size:12px;color:var(--cream);outline:none}
 .csend{background:var(--teal);color:#0E0E0E;border:none;padding:8px 12px;font-family:var(--fh);font-size:11px;font-weight:700;cursor:pointer;text-transform:uppercase}
 .chost-note{font-size:10px;color:var(--muted);font-family:var(--fm);margin-top:8px;font-style:italic}

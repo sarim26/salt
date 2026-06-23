@@ -118,7 +118,7 @@ interface AppContextValue {
   vote: (id: string | number, d: number) => void;
   ratePerson: (postId: string, targetUid: string, targetName: string) => void;
   sharePost: (id: string | number) => void;
-  addPostComment: (postId: string, text: string) => Promise<void>;
+  addPostComment: (postId: string, text: string, parentId?: string | null, replyToName?: string | null) => Promise<void>;
   subscribePostComments: (postId: string) => () => void;
   addParticipant: (postId: string, uid: string, name: string) => Promise<void>;
   removeParticipant: (postId: string, uid: string) => Promise<void>;
@@ -541,11 +541,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const addPostComment = useCallback(
-    async (postId: string, text: string) => {
+    async (postId: string, text: string, parentId?: string | null, replyToName?: string | null) => {
       if (!firebaseUser || !profile) return;
       try {
-        await addComment(postId, profile, firebaseUser.uid, text);
-        toast('COMMENT POSTED');
+        await addComment(postId, profile, firebaseUser.uid, text, parentId, replyToName);
+        toast(parentId ? 'REPLY POSTED' : 'COMMENT POSTED');
       } catch (e) {
         toast(actionErrorMessage(e, 'could not post comment'));
       }

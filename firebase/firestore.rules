@@ -176,7 +176,12 @@ service cloud.firestore {
           && sameSchool(get(/databases/$(database)/documents/posts/$(postId)).data);
         allow create: if canUseApp()
           && request.resource.data.authorUid == request.auth.uid
-          && sameSchool(get(/databases/$(database)/documents/posts/$(postId)).data);
+          && sameSchool(get(/databases/$(database)/documents/posts/$(postId)).data)
+          && (
+            !('parentId' in request.resource.data)
+            || request.resource.data.parentId == null
+            || exists(/databases/$(database)/documents/posts/$(postId)/comments/$(request.resource.data.parentId))
+          );
         allow delete: if canUseApp() && (
           resource.data.authorUid == request.auth.uid
           || get(/databases/$(database)/documents/posts/$(postId)).data.authorUid == request.auth.uid

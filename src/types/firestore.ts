@@ -48,6 +48,8 @@ export interface CommentDoc {
   authorInitials: string;
   authorPhotoUrl?: string | null;
   avatarIndex: number;
+  parentId?: string | null;
+  replyToName?: string | null;
   createdAt: Timestamp;
 }
 
