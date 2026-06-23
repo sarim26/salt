@@ -1,17 +1,21 @@
 export type AppMode = 'live' | null;
 
-export type Screen =
-  | 'login'
-  | 'feed'
-  | 'explore'
-  | 'chats'
-  | 'chat-detail'
-  | 'profile';
+export type Screen = 'login' | 'feed' | 'explore' | 'profile';
 
 export type FilterTab = 'all' | 'food' | 'trade' | 'hang';
 
-export type MeetStatus = 'none' | 'pending' | 'confirmed' | 'rated';
+export interface PostComment {
+  id: string;
+  authorUid: string;
+  text: string;
+  n: string;
+  i: string;
+  av: number;
+  photoUrl: string | null;
+  time: string;
+}
 
+/** @deprecated legacy meet-request type — kept for cleanup service */
 export interface IncomingMeetRequest {
   id: string;
   postId: string;
@@ -28,6 +32,7 @@ export interface Post {
   n: string;
   i: string;
   av: number;
+  photoUrl?: string | null;
   aura: number;
   body: string;
   tags: string[];
@@ -36,8 +41,10 @@ export interface Post {
   score: number;
   uv: number;
   reps: number;
-  met: boolean;
-  meetStatus?: MeetStatus;
+  capacity: number;
+  participantUids: string[];
+  participantNames: Record<string, string>;
+  meetingDone: boolean;
   expired?: boolean;
   postedAt?: string;
 }

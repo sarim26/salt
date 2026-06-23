@@ -1,4 +1,5 @@
-import { AVC } from '../constants';
+import { Avatar } from './Avatar';
+import { PostComments } from './PostComments';
 import type { Post } from '../types';
 import { fmt, lvl, pct, tc } from '../utils/helpers';
 
@@ -8,10 +9,9 @@ interface PostCardProps {
   currentUid?: string | null;
   showRec?: boolean;
   compact?: boolean;
+  ratedKeys: Set<string>;
   onVote: (id: string | number, d: number) => void;
-  onMeetUp: (id: string | number) => void;
-  onRateMeetUp: (id: string | number) => void;
-  onOpenChat: (id: string | number) => void;
+  onRatePerson: (postId: string, targetUid: string, targetName: string) => void;
   onShare: (id: string | number) => void;
 }
 
@@ -21,15 +21,31 @@ export function PostCard({
   currentUid,
   showRec,
   compact,
+  ratedKeys,
   onVote,
-  onMeetUp,
-  onRateMeetUp,
-  onOpenChat,
+  onRatePerson,
   onShare,
 }: PostCardProps) {
   const u = p.mins < 120;
   const sc = p.score > 0 ? 'pos' : p.score < 0 ? 'neg' : '';
   const isOwnPost = Boolean(currentUid && p.authorUid && currentUid === p.authorUid);
+  const postId = String(p.id);
+
+  const rateTargets =
+    p.meetingDone && currentUid
+      ? [
+          ...(p.authorUid && p.authorUid !== currentUid
+            ? [{ uid: p.authorUid, name: p.n }]
+            : []),
+          ...p.participantUids
+            .filter((uid) => uid !== currentUid)
+            .map((uid) => ({ uid, name: p.participantNames[uid] || 'STUDENT' })),
+        ].filter((t) => !ratedKeys.has(`${postId}_${t.uid}`))
+      : [];
+
+  const inParty =
+    Boolean(currentUid) &&
+    (isOwnPost || p.participantUids.includes(currentUid!));
 
   if (compact) {
     return (
@@ -91,9 +107,13 @@ export function PostCard({
           </div>
           <div className="pmain">
             <div className="ptop">
-              <div className="pav" style={{ background: AVC[p.av] }}>
-                {p.i}
-              </div>
+              <Avatar
+                initials={p.i}
+                photoUrl={p.photoUrl}
+                colorIndex={p.av}
+                size="md"
+                className="pav"
+              />
               <div className="pmeta">
                 <div className="pname">
                   {p.n.toUpperCase()}
@@ -120,52 +140,41 @@ export function PostCard({
                 <i className="ti ti-map-pin" style={{ fontSize: 10 }} /> {p.loc}
               </div>
             )}
+
+            <PostComments post={p} currentUid={currentUid} />
+
             <div className="pacts">
-              <button
-                type="button"
-                className="abtn"
-                onClick={() => onOpenChat(p.id)}
-                disabled={isOwnPost}
-                title={isOwnPost ? 'cannot reply to your own post' : 'reply'}
-              >
-                <i className="ti ti-message-circle" />
-                {p.reps} {p.reps === 1 ? 'reply' : 'replies'}
-              </button>
-              <button
-                type="button"
-                className="abtn"
-                onClick={() => onShare(p.id)}
-                aria-label="share post"
-              >
+              <button type="button" className="abtn" onClick={() => onShare(p.id)} aria-label="share">
                 <i className="ti ti-share" />
               </button>
               {isOwnPost ? (
                 <span className="mbtn mbtn-own">YOUR POST</span>
-              ) : p.meetStatus === 'rated' || p.met ? (
+              ) : inParty && p.meetingDone && rateTargets.length > 0 ? (
+                <div className="rate-btns">
+                  {rateTargets.map((t) => (
+                    <button
+                      key={t.uid}
+                      type="button"
+                      className="mbtn mbtn-ready"
+                      onClick={() => onRatePerson(postId, t.uid, t.name)}
+                    >
+                      RATE {t.name.split(' ')[0].toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              ) : inParty && p.meetingDone && rateTargets.length === 0 ? (
                 <span className="mbtn mbtn-rated">RATED ✓</span>
-              ) : p.meetStatus === 'pending' ? (
-                <span className="mbtn mbtn-pending">REQUEST SENT ✓</span>
-              ) : p.meetStatus === 'confirmed' ? (
-                <button
-                  type="button"
-                  className="mbtn mbtn-ready"
-                  onClick={() => onRateMeetUp(p.id)}
-                >
-                  RATE MEETUP
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="mbtn"
-                  onClick={() => onMeetUp(p.id)}
-                >
-                  MEET UP
-                </button>
-              )}
+              ) : isParticipant(currentUid, p) ? (
+                <span className="mbtn mbtn-pending">JOINED — WAITING</span>
+              ) : null}
             </div>
           </div>
         </div>
       </div>
     </>
   );
+}
+
+function isParticipant(uid: string | null | undefined, p: Post): boolean {
+  return Boolean(uid && p.participantUids.includes(uid));
 }

@@ -89,6 +89,11 @@ service cloud.firestore {
         && request.resource.data.createdAt == resource.data.createdAt;
     }
 
+    function meetingPartyMember(postData, uid) {
+      return postData.authorUid == uid
+        || ('participantUids' in postData && uid in postData.participantUids);
+    }
+
     match /users/{uid} {
       allow read: if isSignedIn() && (isOwner(uid) || sameSchool(resource.data));
       allow create: if validUserCreate(uid);
@@ -122,14 +127,35 @@ service cloud.firestore {
         && request.resource.data.schoolDomain == callerSchool()
         && request.resource.data.score == 0
         && replyCountOf(request.resource.data) == 0
-        && request.resource.data.expiresAt > request.time;
+        && request.resource.data.expiresAt > request.time
+        && (!('capacity' in request.resource.data) || (
+          request.resource.data.capacity is int
+          && request.resource.data.capacity >= 1
+          && request.resource.data.capacity <= 10
+        ))
+        && (!('participantUids' in request.resource.data)
+          || request.resource.data.participantUids.size() == 0)
+        && (!('meetingDone' in request.resource.data)
+          || request.resource.data.meetingDone == false);
       allow update: if postReplyIncrement()
         || postScoreUpdate()
         || (canUseApp()
           && resource.data.authorUid == request.auth.uid
           && request.resource.data.authorUid == resource.data.authorUid
           && request.resource.data.schoolDomain == resource.data.schoolDomain
-          && request.resource.data.score == resource.data.score);
+          && request.resource.data.score == resource.data.score
+          && (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+              'participantUids', 'participantNames', 'meetingDone', 'replyCount'
+            ])
+            || (
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'participantUids', 'participantNames', 'meetingDone', 'replyCount'
+              ])
+              && request.resource.data.participantUids.size()
+                <= ('capacity' in resource.data ? resource.data.capacity : 1)
+            )
+          ));
       allow delete: if canUseApp() && resource.data.authorUid == request.auth.uid;
 
       match /votes/{voteUid} {
@@ -143,6 +169,19 @@ service cloud.firestore {
           voteUid == request.auth.uid
           || get(/databases/$(database)/documents/posts/$(postId)).data.authorUid == request.auth.uid
         );
+      }
+
+      match /comments/{commentId} {
+        allow read: if canUseApp()
+          && sameSchool(get(/databases/$(database)/documents/posts/$(postId)).data);
+        allow create: if canUseApp()
+          && request.resource.data.authorUid == request.auth.uid
+          && sameSchool(get(/databases/$(database)/documents/posts/$(postId)).data);
+        allow delete: if canUseApp() && (
+          resource.data.authorUid == request.auth.uid
+          || get(/databases/$(database)/documents/posts/$(postId)).data.authorUid == request.auth.uid
+        );
+        allow update: if false;
       }
     }
 
@@ -232,14 +271,21 @@ service cloud.firestore {
           || get(/databases/$(database)/documents/posts/$(resource.data.postId)).data.authorUid == request.auth.uid);
       allow create: if canUseApp()
         && callerSchoolOk()
-        && ratingId == request.auth.uid + '_' + request.resource.data.postId
+        && ratingId == request.auth.uid + '_' + request.resource.data.targetUid + '_' + request.resource.data.postId
         && request.resource.data.reviewerUid == request.auth.uid
         && request.resource.data.targetUid != request.auth.uid
         && request.resource.data.applied == false
         && request.resource.data.stars >= 1
         && request.resource.data.stars <= 5
-        && request.resource.data.targetUid
-          == get(/databases/$(database)/documents/posts/$(request.resource.data.postId)).data.authorUid
+        && get(/databases/$(database)/documents/posts/$(request.resource.data.postId)).data.meetingDone == true
+        && meetingPartyMember(
+          get(/databases/$(database)/documents/posts/$(request.resource.data.postId)).data,
+          request.auth.uid
+        )
+        && meetingPartyMember(
+          get(/databases/$(database)/documents/posts/$(request.resource.data.postId)).data,
+          request.resource.data.targetUid
+        )
         && sameSchool(get(/databases/$(database)/documents/posts/$(request.resource.data.postId)).data)
         && !exists(/databases/$(database)/documents/ratings/$(ratingId));
       allow update: if canUseApp()

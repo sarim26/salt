@@ -23,11 +23,10 @@ export function ExploreScreen() {
     doTabAndGo,
     showAura,
     vote,
-    meetUp,
-    rateMeetUp,
-    openChatFromPost,
+    ratePerson,
     sharePost,
     firebaseUid,
+    ratedKeys,
   } = useApp();
 
   if (!user) return null;
@@ -76,10 +75,9 @@ export function ExploreScreen() {
                   schoolName={user.name}
                   compact
                   currentUid={firebaseUid}
+                  ratedKeys={ratedKeys}
                   onVote={vote}
-                  onMeetUp={meetUp}
-                  onRateMeetUp={rateMeetUp}
-                  onOpenChat={openChatFromPost}
+                  onRatePerson={ratePerson}
                   onShare={sharePost}
                 />
               ))}

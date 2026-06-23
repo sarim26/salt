@@ -29,7 +29,7 @@ export function RateOverlay() {
       <div className="rbox">
         <div className="rlbl">meet &amp; eat</div>
         <div className="rtitle">RATE THE MEETUP</div>
-        <div className="rsub">required — how was the vibe?</div>
+        <div className="rsub">how was the vibe with {rateWho}?</div>
         <div className="rwho">{rateWho}</div>
         <div className="stars">
           {[1, 2, 3, 4, 5].map((n) => (

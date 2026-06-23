@@ -22,15 +22,14 @@ export function FeedScreen() {
     getSortedPosts,
     getTagAff,
     vote,
-    meetUp,
-    rateMeetUp,
-    openChatFromPost,
+    ratePerson,
     sharePost,
     firebaseUid,
-    openSheet,
-    openSheetWith,
+    ratedKeys,
     showAura,
     goScreen,
+    searchQuery,
+    doSearch,
   } = useApp();
 
   if (!user) return null;
@@ -67,33 +66,15 @@ export function FeedScreen() {
         </div>
         <span className="expire-txt">posts die in 24h</span>
       </div>
-      <div className="compose">
-        <div className="compose-top">
-          <Avatar
-            initials={user.ini}
-            photoUrl={user.photoUrl}
-            colorIndex={profile?.avatarIndex}
-            size="md"
-            className="cavi"
-          />
-          <div className="cfake" onClick={openSheet} role="button" tabIndex={0}>
-            what&apos;s the move tonight?
-          </div>
-        </div>
-        <div className="cbtns">
-          <button type="button" className="ctag" onClick={() => openSheetWith('food')}>
-            food
-          </button>
-          <button type="button" className="ctag" onClick={() => openSheetWith('trade')}>
-            trade
-          </button>
-          <button type="button" className="ctag" onClick={() => openSheetWith('hang')}>
-            hang
-          </button>
-          <button type="button" className="cpost" onClick={openSheet}>
-            POST
-          </button>
-        </div>
+      <div className="feed-search">
+        <i className="ti ti-search" />
+        <input
+          type="search"
+          className="feed-search-inp"
+          placeholder="search posts, people, tags..."
+          value={searchQuery}
+          onChange={(e) => doSearch(e.target.value)}
+        />
       </div>
       <div className="tabs" id="ftabs">
         {FILTER_TABS.map((f) => (
@@ -112,7 +93,7 @@ export function FeedScreen() {
           <div className="empty">
             <i className="ti ti-ghost" />
             <div className="etit">nothing here</div>
-            be the first to post.
+            {searchQuery ? 'no matches — try another search' : 'be the first to post.'}
           </div>
         ) : (
           sorted.map((p, i) => (
@@ -120,12 +101,11 @@ export function FeedScreen() {
               key={p.id}
               post={p}
               schoolName={user.name}
-              showRec={hasAff && i === 0 && filter === 'all'}
+              showRec={hasAff && i === 0 && filter === 'all' && !searchQuery}
               currentUid={firebaseUid}
+              ratedKeys={ratedKeys}
               onVote={vote}
-              onMeetUp={meetUp}
-              onRateMeetUp={rateMeetUp}
-              onOpenChat={openChatFromPost}
+              onRatePerson={ratePerson}
               onShare={sharePost}
             />
           ))

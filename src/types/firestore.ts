@@ -33,7 +33,22 @@ export interface PostDoc {
   authorName: string;
   authorInitials: string;
   authorAura: number;
+  authorPhotoUrl?: string | null;
   avatarIndex: number;
+  capacity?: number;
+  participantUids?: string[];
+  participantNames?: Record<string, string>;
+  meetingDone?: boolean;
+}
+
+export interface CommentDoc {
+  authorUid: string;
+  text: string;
+  authorName: string;
+  authorInitials: string;
+  authorPhotoUrl?: string | null;
+  avatarIndex: number;
+  createdAt: Timestamp;
 }
 
 export interface VoteDoc {

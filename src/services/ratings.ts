@@ -12,40 +12,49 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import type { Post } from '../types';
-import type { UserProfile } from '../types/firestore';
-import { requireConfirmedMeetRequest } from './meetRequests';
+import type { PostDoc, UserProfile } from '../types/firestore';
 import { auraGiven } from '../utils/helpers';
+
+export function ratingId(reviewerUid: string, targetUid: string, postId: string): string {
+  return `${reviewerUid}_${targetUid}_${postId}`;
+}
+
+function meetingParty(data: PostDoc): string[] {
+  return [data.authorUid, ...(data.participantUids ?? [])];
+}
 
 export async function submitRating(
   reviewerUid: string,
   profile: UserProfile,
   postId: string,
   post: Post,
+  targetUid: string,
   stars: number,
   vibes: string[] = []
 ): Promise<{ auraGiven: number }> {
   if (!db) throw new Error('Firebase not configured');
   if (!post.authorUid) throw new Error('Invalid post');
-
-  const targetUid = post.authorUid;
-  if (targetUid === reviewerUid) throw new Error('Cannot rate your own post');
+  if (targetUid === reviewerUid) throw new Error('Cannot rate yourself');
 
   const postSnap = await getDoc(doc(db, 'posts', postId));
   if (!postSnap.exists()) throw new Error('Post not found');
-  const postData = postSnap.data();
-  if (postData.authorUid !== targetUid) throw new Error('Invalid post');
+  const postData = postSnap.data() as PostDoc;
+  if (!postData.meetingDone) throw new Error('Host must confirm the meeting first');
+
+  const party = meetingParty(postData);
+  if (!party.includes(reviewerUid) || !party.includes(targetUid)) {
+    throw new Error('You can only rate people from this meetup');
+  }
+
   if (postData.schoolDomain?.toLowerCase() !== profile.schoolDomain?.toLowerCase()) {
     throw new Error('Wrong campus');
   }
 
-  const ratingId = `${reviewerUid}_${postId}`;
-  const ratingRef = doc(db, 'ratings', ratingId);
-
-  await requireConfirmedMeetRequest(reviewerUid, postId);
-
+  const id = ratingId(reviewerUid, targetUid, postId);
+  const ratingRef = doc(db, 'ratings', id);
   const existing = await getDoc(ratingRef);
   if (existing.exists()) {
-    throw new Error('You already rated this meetup');
+    throw new Error('You already rated this person');
   }
 
   const prior = profile.meetCounts?.[targetUid] || 0;
@@ -60,6 +69,11 @@ export async function submitRating(
   if (reviewerMeetCount >= 3 && !hadConnector) {
     badges.push('connector');
   }
+
+  const targetName =
+    targetUid === postData.authorUid
+      ? postData.authorName
+      : postData.participantNames?.[targetUid] || 'peer';
 
   const batch = writeBatch(db);
 
@@ -85,7 +99,7 @@ export async function submitRating(
 
   batch.set(doc(collection(db, 'users', reviewerUid, 'auraEvents')), {
     ico: 'ti-star',
-    txt: `rated ${post.n} — ${stars}★`,
+    txt: `rated ${targetName} — ${stars}★`,
     pts: `${stars}★`,
     createdAt: serverTimestamp(),
   });
@@ -100,7 +114,6 @@ export async function submitRating(
   }
 
   await batch.commit();
-
   return { auraGiven: given };
 }
 
@@ -188,9 +201,10 @@ export function subscribePendingRatings(
   );
 }
 
+/** Keys are `${postId}_${targetUid}` for ratings the user has given. */
 export function subscribeMyRatings(
   reviewerUid: string,
-  onData: (postIds: Set<string>) => void,
+  onData: (ratedKeys: Set<string>) => void,
   onError?: (err: Error) => void
 ): Unsubscribe {
   if (!db) return () => {};
@@ -200,13 +214,29 @@ export function subscribeMyRatings(
   return onSnapshot(
     q,
     (snap) => {
-      const ids = new Set<string>();
+      const keys = new Set<string>();
       snap.docs.forEach((d) => {
-        const postId = d.data().postId;
-        if (typeof postId === 'string') ids.add(postId);
+        const { postId, targetUid } = d.data();
+        if (typeof postId === 'string' && typeof targetUid === 'string') {
+          keys.add(`${postId}_${targetUid}`);
+        }
       });
-      onData(ids);
+      onData(keys);
     },
     (err) => onError?.(err)
   );
+}
+
+export function getRateTargetsForPost(post: Post, uid: string): { uid: string; name: string }[] {
+  if (!post.authorUid || !post.meetingDone) return [];
+  const party: { uid: string; name: string }[] = [];
+  if (post.authorUid !== uid) {
+    party.push({ uid: post.authorUid, name: post.n });
+  }
+  for (const pUid of post.participantUids) {
+    if (pUid !== uid) {
+      party.push({ uid: pUid, name: post.participantNames[pUid] || 'STUDENT' });
+    }
+  }
+  return party;
 }

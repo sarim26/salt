@@ -6,9 +6,11 @@ export function PostSheet() {
     postText,
     postTag,
     postLoc,
+    postCapacity,
     setPostText,
     setPostTag,
     setPostLoc,
+    setPostCapacity,
     closeSheet,
     doPost,
   } = useApp();
@@ -39,6 +41,18 @@ export function PostSheet() {
             <option value="food">food</option>
             <option value="trade">trade</option>
             <option value="hang">hang</option>
+          </select>
+          <select
+            className="shsel"
+            value={postCapacity}
+            onChange={(e) => setPostCapacity(Number(e.target.value))}
+            title="how many people to meet"
+          >
+            {[1, 2, 3, 4, 5].map((n) => (
+              <option key={n} value={n}>
+                {n} {n === 1 ? 'person' : 'people'}
+              </option>
+            ))}
           </select>
           <input
             className="shloc"

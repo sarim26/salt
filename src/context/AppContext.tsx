@@ -18,25 +18,14 @@ import {
   awaitAuthForFirestore,
   deleteAccount as firebaseDeleteAccount,
 } from '../services/auth';
+import { subscribeAuraEvents } from '../services/chats';
+import { addComment, subscribeComments } from '../services/comments';
 import {
-  markChatRead,
-  openChatFromPostAuthor,
-  openChatWithPeer,
-  sendMessage,
-  subscribeAuraEvents,
-  subscribeChats,
-  subscribeMessages,
-} from '../services/chats';
-import {
-  confirmMeetRequest,
-  declineMeetRequest,
-  sendMeetRequest,
-  subscribeIncomingMeetRequests,
-  subscribeOutgoingMeetRequests,
-} from '../services/meetRequests';
-import {
+  addParticipant,
+  confirmMeetingDone,
   createPost,
   deletePost,
+  removeParticipant,
   setVote,
   subscribeFeed,
   subscribeLeaderboard,
@@ -56,17 +45,13 @@ import type { UserProfile } from '../types/firestore';
 import type {
   AppMode,
   AuraHistoryItem,
-  Chat,
-  ChatMessage,
   FilterTab,
-  IncomingMeetRequest,
   LeaderboardUser,
-  MeetStatus,
   Post,
+  PostComment,
   Screen,
   User,
 } from '../types';
-import type { MeetRequestStatus } from '../types/firestore';
 import { actionErrorMessage, firestoreErrorMessage } from '../utils/firestoreErrors';
 import { emailDomain } from '../utils/firestoreMappers';
 import { STARTING_AURA, POST_AURA_REWARD } from '../constants';
@@ -90,30 +75,26 @@ interface AppContextValue {
   filter: FilterTab;
   posts: Post[];
   myPostHistory: Post[];
-  chats: Chat[];
-  currentChatMessages: ChatMessage[];
   lb: LeaderboardUser[];
   myPosts: number;
   myMeets: number;
   aHist: AuraHistoryItem[];
   earnedBdg: Set<string>;
-  curChat: string | number | null;
+  ratedKeys: Set<string>;
+  commentsForPost: Record<string, PostComment[]>;
   toastMsg: string;
   toastVisible: boolean;
   sheetOpen: boolean;
   rateOpen: boolean;
-  meetConfirmOpen: boolean;
-  meetConfirmWho: string;
-  meetConfirmError: string;
-  meetConfirmSending: boolean;
-  incomingMeetRequests: IncomingMeetRequest[];
-  ratePostId: string | number | null;
+  ratePostId: string | null;
+  rateTargetUid: string | null;
   rateWho: string;
   starV: number;
   loginError: string;
   postText: string;
   postTag: string;
   postLoc: string;
+  postCapacity: number;
   loginEmail: string;
   loginPassword: string;
   searchQuery: string;
@@ -123,6 +104,7 @@ interface AppContextValue {
   setPostText: (v: string) => void;
   setPostTag: (v: string) => void;
   setPostLoc: (v: string) => void;
+  setPostCapacity: (n: number) => void;
   setStarV: (n: number) => void;
   goScreen: (n: Screen) => void;
   doLogin: () => void;
@@ -134,17 +116,13 @@ interface AppContextValue {
   setFilterTab: (f: FilterTab) => void;
   doTabAndGo: (f: FilterTab) => void;
   vote: (id: string | number, d: number) => void;
-  meetUp: (id: string | number) => void;
-  rateMeetUp: (id: string | number) => void;
-  cancelMeetConfirm: () => void;
-  confirmSendMeetRequest: () => void;
-  confirmMeet: (requestId: string) => void;
-  declineMeet: (requestId: string) => void;
-  openChatWithPeer: (peerUid: string, postId: string) => void;
-  openChatFromPost: (id: string | number) => void;
+  ratePerson: (postId: string, targetUid: string, targetName: string) => void;
   sharePost: (id: string | number) => void;
-  openChatD: (id: string | number) => void;
-  sendMsg: (text: string) => void;
+  addPostComment: (postId: string, text: string) => Promise<void>;
+  subscribePostComments: (postId: string) => () => void;
+  addParticipant: (postId: string, uid: string, name: string) => Promise<void>;
+  removeParticipant: (postId: string, uid: string) => Promise<void>;
+  confirmMeetingDone: (postId: string) => Promise<void>;
   openSheet: () => void;
   openSheetWith: (t: string) => void;
   closeSheet: (targetId?: string) => void;
@@ -159,33 +137,6 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null);
 
 const INITIAL_BADGES = new Set(['verified student']);
-
-function resolveMeetStatus(
-  postId: string | number,
-  rated: Set<string | number>,
-  outgoing: Record<string, MeetRequestStatus>
-): MeetStatus {
-  if (rated.has(postId)) return 'rated';
-  const status = outgoing[String(postId)];
-  if (status === 'pending') return 'pending';
-  if (status === 'confirmed') return 'confirmed';
-  return 'none';
-}
-
-function withMeetStatus(
-  posts: Post[],
-  rated: Set<string | number>,
-  outgoing: Record<string, MeetRequestStatus>
-): Post[] {
-  return posts.map((p) => {
-    const meetStatus = resolveMeetStatus(p.id, rated, outgoing);
-    return {
-      ...p,
-      meetStatus,
-      met: meetStatus === 'rated',
-    };
-  });
-}
 
 function profileToUser(profile: UserProfile): User {
   const uni = UNIVERSITIES[profile.schoolDomain];
@@ -216,29 +167,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [filter, setFilter] = useState<FilterTab>('all');
   const [posts, setPosts] = useState<Post[]>([]);
   const [myPostHistory, setMyPostHistory] = useState<Post[]>([]);
-  const [chats, setChats] = useState<Chat[]>([]);
-  const [currentChatMessages, setCurrentChatMessages] = useState<ChatMessage[]>([]);
   const [lb, setLb] = useState<LeaderboardUser[]>([]);
   const [myPosts, setMyPosts] = useState(0);
   const [myMeets, setMyMeets] = useState(0);
-  const [metPostIds, setMetPostIds] = useState<Set<string | number>>(new Set());
-  const [myMeetByPost, setMyMeetByPost] = useState<Record<string, MeetRequestStatus>>({});
-  const [incomingMeetRequests, setIncomingMeetRequests] = useState<IncomingMeetRequest[]>([]);
+  const [ratedKeys, setRatedKeys] = useState<Set<string>>(new Set());
+  const [commentsForPost, setCommentsForPost] = useState<Record<string, PostComment[]>>({});
+  const commentUnsubsRef = useRef<Record<string, () => void>>({});
   const [aHist, setAHist] = useState<AuraHistoryItem[]>([]);
   const [earnedBdg, setEarnedBdg] = useState<Set<string>>(new Set(INITIAL_BADGES));
-  const [curChat, setCurChat] = useState<string | number | null>(null);
-  const [ratePostId, setRatePostId] = useState<string | number | null>(null);
+  const [ratePostId, setRatePostId] = useState<string | null>(null);
+  const [rateTargetUid, setRateTargetUid] = useState<string | null>(null);
   const [rateWho, setRateWho] = useState('');
   const [starV, setStarV] = useState(0);
   const [toastMsg, setToastMsg] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [rateOpen, setRateOpen] = useState(false);
-  const [meetConfirmOpen, setMeetConfirmOpen] = useState(false);
-  const [meetConfirmPost, setMeetConfirmPost] = useState<Post | null>(null);
-  const [meetConfirmWho, setMeetConfirmWho] = useState('');
-  const [meetConfirmError, setMeetConfirmError] = useState('');
-  const [meetConfirmSending, setMeetConfirmSending] = useState(false);
   const profileRef = useRef<UserProfile | null>(null);
   profileRef.current = profile;
   const [loginError, setLoginError] = useState('');
@@ -247,6 +191,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [postText, setPostText] = useState('');
   const [postTag, setPostTag] = useState('food');
   const [postLoc, setPostLoc] = useState('');
+  const [postCapacity, setPostCapacity] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [firestoreReady, setFirestoreReady] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -255,10 +200,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const feedUnsubsRef = useRef<Array<() => void>>([]);
   const sessionGenRef = useRef(0);
   const voteIndexRef = useRef<Record<string, 1 | -1>>({});
-  const metPostIdsRef = useRef(metPostIds);
-  const myMeetByPostRef = useRef(myMeetByPost);
-  metPostIdsRef.current = metPostIds;
-  myMeetByPostRef.current = myMeetByPost;
 
   const toast = useCallback((m: string) => {
     setToastMsg(m);
@@ -273,23 +214,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setProfile(null);
     setPosts([]);
     setMyPostHistory([]);
-    setChats([]);
-    setCurrentChatMessages([]);
     setLb([]);
     setMyAura(STARTING_AURA);
     setMyPosts(0);
     setMyMeets(0);
-    setMetPostIds(new Set());
-    setMyMeetByPost({});
-    setIncomingMeetRequests([]);
-    setMeetConfirmOpen(false);
-    setMeetConfirmPost(null);
-    setMeetConfirmWho('');
-    setMeetConfirmError('');
+    setRatedKeys(new Set());
+    setCommentsForPost({});
+    Object.values(commentUnsubsRef.current).forEach((u) => u());
+    commentUnsubsRef.current = {};
     setAHist([]);
     setEarnedBdg(new Set(INITIAL_BADGES));
-    setCurChat(null);
     setFilter('all');
+    setSearchQuery('');
     setBootstrapError('');
     setScreen('login');
   }, []);
@@ -435,7 +371,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (liveSessionUid.current && liveSessionUid.current !== uid) {
       setPosts([]);
       setMyPostHistory([]);
-      setChats([]);
       setLb([]);
     }
 
@@ -480,26 +415,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           },
           onErr
         ),
-        subscribeMyRatings(
-          uid,
-          (postIds) => {
-            setMetPostIds(new Set(postIds));
-          },
-          onErr
-        ),
-        subscribeOutgoingMeetRequests(
-          uid,
-          (byPost) => {
-            setMyMeetByPost(byPost);
-          },
-          (_postId, from, to) => {
-            if (from === 'pending' && to === 'confirmed') {
-              toast('MEET CONFIRMED — RATE YOUR MEETUP');
-            }
-          },
-          onErr
-        ),
-        subscribeIncomingMeetRequests(uid, setIncomingMeetRequests, onErr),
+        subscribeMyRatings(uid, setRatedKeys, onErr),
         subscribeFeed(
           domain,
           () => voteIndexRef.current,
@@ -510,19 +426,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 ...p,
                 uv: votes[String(p.id)] ?? 0,
               }));
-              const merged = withMeetStatus(
-                next,
-                metPostIdsRef.current,
-                myMeetByPostRef.current
-              );
-              if (merged.length === 0 && prev.length > 0) return prev;
-              return merged;
+              if (next.length === 0 && prev.length > 0) return prev;
+              return next;
             });
           },
           onErr
         ),
         subscribeLeaderboard(domain, setLb),
-        subscribeChats(uid, domain, setChats, onErr),
         subscribeAuraEvents(uid, setAHist, onErr),
         subscribePendingRatings(
           uid,
@@ -537,48 +447,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [firebaseUser?.uid, profile?.schoolDomain, profile?.email, toast]);
 
   useEffect(() => {
-    setPosts((prev) => withMeetStatus(prev, metPostIds, myMeetByPost));
-  }, [metPostIds, myMeetByPost]);
-
-  const incomingNotifiedRef = useRef(false);
-  useEffect(() => {
-    if (!firestoreReady || incomingNotifiedRef.current) return;
-    if (incomingMeetRequests.length > 0) {
-      incomingNotifiedRef.current = true;
-      toast(
-        `${incomingMeetRequests.length} MEET REQUEST${incomingMeetRequests.length > 1 ? 'S' : ''} — CHECK CHATS`
-      );
-    }
-  }, [incomingMeetRequests.length, firestoreReady, toast]);
-
-  useEffect(() => {
     if (!profile || !firebaseUser?.uid) return;
     applyPendingRatings(firebaseUser.uid).catch((e) => {
       const msg = firestoreErrorMessage(e);
       if (msg) toast(msg);
     });
   }, [profile, firebaseUser?.uid, toast]);
-
-  useEffect(() => {
-    if (!firebaseUser || !curChat) {
-      setCurrentChatMessages([]);
-      return;
-    }
-    return subscribeMessages(
-      String(curChat),
-      firebaseUser.uid,
-      setCurrentChatMessages,
-      (err) => {
-        const msg = firestoreErrorMessage(err);
-        if (msg) toast(msg);
-      }
-    );
-  }, [firebaseUser, curChat, toast]);
-
-  useEffect(() => {
-    if (!firebaseUser || !curChat) return;
-    markChatRead(String(curChat), firebaseUser.uid);
-  }, [firebaseUser, curChat, currentChatMessages.length]);
 
   const goScreen = useCallback(
     (n: Screen) => {
@@ -605,8 +479,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const getSortedPosts = useCallback(() => {
     if (!user) return [];
-    return sortedPosts(posts, filter, user.ini);
-  }, [posts, filter, user]);
+    let list = sortedPosts(posts, filter, user.ini);
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (p) =>
+          p.body.toLowerCase().includes(q) ||
+          p.n.toLowerCase().includes(q) ||
+          p.tags.some((t) => t.includes(q))
+      );
+    }
+    return list;
+  }, [posts, filter, user, searchQuery]);
 
   const getTagAff = useCallback(() => {
     if (!user) return { food: 0, trade: 0, hang: 0 };
@@ -625,147 +509,87 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [firebaseUser, toast]
   );
 
-  const meetUp = useCallback(
-    (id: string | number) => {
-      const p = posts.find((x) => x.id === id);
-      if (!p) return;
-
-      if (!firebaseUser) return;
-
-      if (p.authorUid && p.authorUid === firebaseUser.uid) {
-        toast('YOU CANNOT MEET ON YOUR OWN POST');
-        return;
-      }
-
-      if (!p.authorUid) {
-        toast('CANNOT MEET ON THIS POST');
-        return;
-      }
-
-      if (metPostIdsRef.current.has(id) || p.meetStatus === 'rated') {
-        toast('ALREADY RATED THIS MEETUP');
-        return;
-      }
-
-      if (p.meetStatus === 'pending') {
-        toast('REQUEST ALREADY SENT');
-        return;
-      }
-
-      if (p.meetStatus === 'confirmed') {
-        setRatePostId(id);
-        setStarV(0);
-        setRateWho(p.n.toUpperCase());
-        setRateOpen(true);
-        return;
-      }
-
-      setMeetConfirmPost(p);
-      setMeetConfirmWho(p.n.toUpperCase());
-      setMeetConfirmError('');
-      setMeetConfirmOpen(true);
-    },
-    [posts, firebaseUser, toast]
-  );
-
-  const rateMeetUp = useCallback(
-    (id: string | number) => {
-      const p = posts.find((x) => x.id === id);
-      if (!p) return;
-      if (!firebaseUser) return;
-      if (p.meetStatus !== 'confirmed') {
-        toast('WAIT FOR THEM TO CONFIRM THE MEETUP');
-        return;
-      }
-      setRatePostId(id);
+  const ratePerson = useCallback(
+    (postId: string, targetUid: string, targetName: string) => {
+      setRatePostId(postId);
+      setRateTargetUid(targetUid);
+      setRateWho(targetName.toUpperCase());
       setStarV(0);
-      setRateWho(p.n.toUpperCase());
       setRateOpen(true);
     },
-    [posts, firebaseUser, toast]
+    []
   );
 
-  const cancelMeetConfirm = useCallback(() => {
-    if (meetConfirmSending) return;
-    setMeetConfirmOpen(false);
-    setMeetConfirmPost(null);
-    setMeetConfirmWho('');
-    setMeetConfirmError('');
-  }, [meetConfirmSending]);
-
-  const confirmSendMeetRequest = useCallback(async () => {
-    const p = meetConfirmPost;
-    const activeProfile = profileRef.current;
-    if (!p || !firebaseUser || !activeProfile) {
-      const msg = !activeProfile
-        ? 'profile still loading — try again in a moment'
-        : 'post not found — refresh the feed and try again';
-      setMeetConfirmError(msg);
-      toast(msg);
-      return;
-    }
-
-    setMeetConfirmError('');
-    setMeetConfirmSending(true);
-    try {
-      await sendMeetRequest(firebaseUser.uid, activeProfile, p);
-      setMeetConfirmOpen(false);
-      setMeetConfirmPost(null);
-      setMeetConfirmWho('');
-      toast('REQUEST SENT ✓');
-    } catch (e) {
-      const msg = actionErrorMessage(e, 'could not send meet request');
-      setMeetConfirmError(msg);
-      toast(msg);
-    } finally {
-      setMeetConfirmSending(false);
-    }
-  }, [meetConfirmPost, firebaseUser, toast]);
-
-  const confirmMeet = useCallback(
-    async (requestId: string) => {
-      if (!firebaseUser) return;
-      try {
-        await confirmMeetRequest(requestId, firebaseUser.uid);
-        toast('MEET CONFIRMED');
-      } catch (e) {
-        toast(actionErrorMessage(e, 'could not confirm meet'));
-      }
+  const subscribePostComments = useCallback(
+    (postId: string) => {
+      if (commentUnsubsRef.current[postId]) return () => commentUnsubsRef.current[postId]();
+      const unsub = subscribeComments(
+        postId,
+        (comments) => setCommentsForPost((prev) => ({ ...prev, [postId]: comments })),
+        (err) => {
+          const msg = firestoreErrorMessage(err);
+          if (msg) toast(msg);
+        }
+      );
+      commentUnsubsRef.current[postId] = unsub;
+      return () => {
+        unsub();
+        delete commentUnsubsRef.current[postId];
+      };
     },
-    [firebaseUser, toast]
+    [toast]
   );
 
-  const declineMeet = useCallback(
-    async (requestId: string) => {
-      if (!firebaseUser) return;
-      try {
-        await declineMeetRequest(requestId, firebaseUser.uid);
-        toast('REQUEST DISMISSED');
-      } catch (e) {
-        toast(actionErrorMessage(e, 'could not dismiss request'));
-      }
-    },
-    [firebaseUser, toast]
-  );
-
-  const handleOpenChatWithPeer = useCallback(
-    async (peerUid: string, postId: string) => {
+  const addPostComment = useCallback(
+    async (postId: string, text: string) => {
       if (!firebaseUser || !profile) return;
       try {
-        const chatId = await openChatWithPeer(
-          firebaseUser.uid,
-          profile,
-          peerUid,
-          postId
-        );
-        setCurChat(chatId);
-        setScreen('chat-detail');
+        await addComment(postId, profile, firebaseUser.uid, text);
+        toast('COMMENT POSTED');
       } catch (e) {
-        const msg = firestoreErrorMessage(e);
-        if (msg) toast(msg);
+        toast(actionErrorMessage(e, 'could not post comment'));
       }
     },
     [firebaseUser, profile, toast]
+  );
+
+  const handleAddParticipant = useCallback(
+    async (postId: string, uid: string, name: string) => {
+      if (!firebaseUser) return;
+      try {
+        await addParticipant(postId, firebaseUser.uid, uid, name);
+        toast('ADDED TO MEETUP');
+      } catch (e) {
+        toast(actionErrorMessage(e, 'could not add person'));
+      }
+    },
+    [firebaseUser, toast]
+  );
+
+  const handleRemoveParticipant = useCallback(
+    async (postId: string, uid: string) => {
+      if (!firebaseUser) return;
+      try {
+        await removeParticipant(postId, firebaseUser.uid, uid);
+        toast('REMOVED FROM MEETUP');
+      } catch (e) {
+        toast(actionErrorMessage(e, 'could not remove person'));
+      }
+    },
+    [firebaseUser, toast]
+  );
+
+  const handleConfirmMeetingDone = useCallback(
+    async (postId: string) => {
+      if (!firebaseUser) return;
+      try {
+        await confirmMeetingDone(postId, firebaseUser.uid);
+        toast('MEETING DONE — RATE EACH OTHER');
+      } catch (e) {
+        toast(actionErrorMessage(e, 'could not confirm meeting'));
+      }
+    },
+    [firebaseUser, toast]
   );
 
   const sharePost = useCallback(
@@ -782,61 +606,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     },
     [posts, user, toast]
-  );
-
-  const openChatFromPost = useCallback(
-    async (id: string | number) => {
-      const p = posts.find((x) => x.id === id);
-      if (!p) return;
-
-      if (!firebaseUser || !profile || !p.authorUid) return;
-      if (p.authorUid === firebaseUser.uid) {
-        toast('YOU CANNOT REPLY TO YOUR OWN POST');
-        return;
-      }
-      try {
-        const chatId = await openChatFromPostAuthor(
-          firebaseUser.uid,
-          profile,
-          p.authorUid,
-          String(p.id)
-        );
-        setCurChat(chatId);
-        setScreen('chat-detail');
-      } catch (e) {
-        const msg = firestoreErrorMessage(e);
-        if (msg) toast(msg);
-      }
-    },
-    [posts, firebaseUser, profile, toast]
-  );
-
-  const openChatD = useCallback((id: string | number) => {
-    setCurChat(id);
-    setScreen('chat-detail');
-  }, []);
-
-  const sendMsg = useCallback(
-    async (text: string) => {
-      const txt = text.trim();
-      if (!txt || curChat == null) return;
-
-      if (!firebaseUser) return;
-      const chat = chats.find((c) => c.id === curChat);
-      if (!chat?.peerUid) return;
-      try {
-        await sendMessage(
-          String(curChat),
-          firebaseUser.uid,
-          chat.peerUid,
-          txt,
-          chat.sourcePostId
-        );
-      } catch (e) {
-        toast(e instanceof Error ? e.message : 'send failed');
-      }
-    },
-    [curChat, firebaseUser, chats, toast]
   );
 
   const openSheet = useCallback(() => setSheetOpen(true), []);
@@ -861,7 +630,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const loc = postLoc.trim();
 
     try {
-      await createPost(firebaseUser.uid, profile, txt, [postTag], loc || null);
+      await createPost(firebaseUser.uid, profile, txt, [postTag], loc || null, postCapacity);
       setPostText('');
       setPostLoc('');
       setSheetOpen(false);
@@ -871,7 +640,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const msg = firestoreErrorMessage(e);
       if (msg) toast(msg);
     }
-  }, [postText, postTag, postLoc, toast, firebaseUser, profile]);
+  }, [postText, postTag, postLoc, postCapacity, toast, firebaseUser, profile]);
 
   const submitRate = useCallback(
     async (vibes: string[]) => {
@@ -879,46 +648,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
         toast('PICK A STAR RATING FIRST');
         return;
       }
-      const p = posts.find((x) => x.id === ratePostId);
-      if (!p) return;
+      const p = ratePostId ? posts.find((x) => String(x.id) === ratePostId) : null;
+      if (!p || !ratePostId || !rateTargetUid || !firebaseUser || !profile) return;
 
-      if (!ratePostId || !firebaseUser || !profile) return;
-      if (p.authorUid && p.authorUid === firebaseUser.uid) {
-        toast('YOU CANNOT RATE YOUR OWN POST');
-        setRateOpen(false);
-        return;
-      }
-      if (p.meetStatus !== 'confirmed' && !metPostIdsRef.current.has(ratePostId)) {
-        toast('MEET MUST BE CONFIRMED BEFORE RATING');
-        setRateOpen(false);
-        return;
-      }
       try {
         await submitRating(
           firebaseUser.uid,
           profile,
-          String(ratePostId),
+          ratePostId,
           p,
+          rateTargetUid,
           starV,
           vibes
         );
-        setMetPostIds((prev) => new Set(prev).add(ratePostId));
-        setPosts((prev) =>
-          prev.map((x) =>
-            x.id === ratePostId
-              ? { ...x, met: true, meetStatus: 'rated' as const }
-              : x
-          )
-        );
+        setRatedKeys((prev) => new Set(prev).add(`${ratePostId}_${rateTargetUid}`));
         setRateOpen(false);
         setRatePostId(null);
+        setRateTargetUid(null);
         setStarV(0);
         toast('RATING SUBMITTED');
       } catch (e) {
         toast(actionErrorMessage(e, 'could not submit rating'));
       }
     },
-    [starV, posts, ratePostId, toast, firebaseUser, profile]
+    [starV, posts, ratePostId, rateTargetUid, toast, firebaseUser, profile]
   );
 
   const removePost = useCallback(
@@ -965,30 +718,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     filter,
     posts,
     myPostHistory,
-    chats,
-    currentChatMessages,
     lb,
     myPosts,
     myMeets,
     aHist,
     earnedBdg,
-    curChat,
+    ratedKeys,
+    commentsForPost,
     toastMsg,
     toastVisible,
     sheetOpen,
     rateOpen,
-    meetConfirmOpen,
-    meetConfirmWho,
-    meetConfirmError,
-    meetConfirmSending,
-    incomingMeetRequests,
     ratePostId,
+    rateTargetUid,
     rateWho,
     starV,
     loginError,
     postText,
     postTag,
     postLoc,
+    postCapacity,
     loginEmail,
     loginPassword,
     searchQuery,
@@ -998,6 +747,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPostText,
     setPostTag,
     setPostLoc,
+    setPostCapacity,
     setStarV,
     goScreen,
     doLogin,
@@ -1009,17 +759,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setFilterTab,
     doTabAndGo,
     vote,
-    meetUp,
-    rateMeetUp,
-    cancelMeetConfirm,
-    confirmSendMeetRequest,
-    confirmMeet,
-    declineMeet,
-    openChatWithPeer: handleOpenChatWithPeer,
-    openChatFromPost,
+    ratePerson,
     sharePost,
-    openChatD,
-    sendMsg,
+    addPostComment,
+    subscribePostComments,
+    addParticipant: handleAddParticipant,
+    removeParticipant: handleRemoveParticipant,
+    confirmMeetingDone: handleConfirmMeetingDone,
     openSheet,
     openSheetWith,
     closeSheet,

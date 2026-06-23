@@ -169,7 +169,8 @@ export async function createPost(
   profile: UserProfile,
   body: string,
   tags: string[],
-  loc: string | null
+  loc: string | null,
+  capacity = 1
 ): Promise<string> {
   if (!db) throw new Error('Firebase not configured');
 
@@ -191,6 +192,8 @@ export async function createPost(
     badges.push('meal trader');
   }
 
+  const slots = Math.min(10, Math.max(1, capacity));
+
   const batch = writeBatch(db);
   const postRef = doc(collection(db, 'posts'));
 
@@ -207,7 +210,12 @@ export async function createPost(
     authorName: activeProfile.displayName,
     authorInitials: activeProfile.initials,
     authorAura: newAura,
+    authorPhotoUrl: activeProfile.photoUrl ?? null,
     avatarIndex: activeProfile.avatarIndex,
+    capacity: slots,
+    participantUids: [],
+    participantNames: {},
+    meetingDone: false,
   });
 
   batch.update(doc(db, 'users', uid), {
@@ -332,6 +340,7 @@ function mapPost(
     n: data.authorName,
     i: data.authorInitials,
     av: data.avatarIndex,
+    photoUrl: data.authorPhotoUrl ?? null,
     aura: data.authorAura,
     body: data.body,
     tags: data.tags,
@@ -340,10 +349,68 @@ function mapPost(
     score,
     uv,
     reps: data.replyCount ?? 0,
-    met: false,
+    capacity: data.capacity ?? 1,
+    participantUids: data.participantUids ?? [],
+    participantNames: data.participantNames ?? {},
+    meetingDone: data.meetingDone ?? false,
     expired: includeExpired ? expired : undefined,
     postedAt: formatRelativeTime(new Date(createdMs)),
   };
+}
+
+export async function addParticipant(
+  postId: string,
+  hostUid: string,
+  targetUid: string,
+  targetName: string
+): Promise<void> {
+  if (!db) throw new Error('Firebase not configured');
+  const ref = doc(db, 'posts', postId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error('Post not found');
+  const data = snap.data() as PostDoc;
+  if (data.authorUid !== hostUid) throw new Error('Only the host can add people');
+  if (data.meetingDone) throw new Error('Meeting already finished');
+  const capacity = data.capacity ?? 1;
+  const current = [...(data.participantUids ?? [])];
+  if (current.includes(targetUid)) return;
+  if (targetUid === hostUid) throw new Error('Cannot add yourself');
+  if (current.length >= capacity) throw new Error('All spots are full');
+  current.push(targetUid);
+  const names = { ...(data.participantNames ?? {}), [targetUid]: targetName };
+  await updateDoc(ref, { participantUids: current, participantNames: names });
+}
+
+export async function removeParticipant(
+  postId: string,
+  hostUid: string,
+  targetUid: string
+): Promise<void> {
+  if (!db) throw new Error('Firebase not configured');
+  const ref = doc(db, 'posts', postId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error('Post not found');
+  const data = snap.data() as PostDoc;
+  if (data.authorUid !== hostUid) throw new Error('Only the host can remove people');
+  if (data.meetingDone) throw new Error('Meeting already finished');
+  const current = (data.participantUids ?? []).filter((u) => u !== targetUid);
+  const names = { ...(data.participantNames ?? {}) };
+  delete names[targetUid];
+  await updateDoc(ref, { participantUids: current, participantNames: names });
+}
+
+export async function confirmMeetingDone(postId: string, hostUid: string): Promise<void> {
+  if (!db) throw new Error('Firebase not configured');
+  const ref = doc(db, 'posts', postId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error('Post not found');
+  const data = snap.data() as PostDoc;
+  if (data.authorUid !== hostUid) throw new Error('Only the host can confirm');
+  if (data.meetingDone) throw new Error('Already confirmed');
+  if (!(data.participantUids?.length ?? 0)) {
+    throw new Error('Add at least one person before confirming');
+  }
+  await updateDoc(ref, { meetingDone: true });
 }
 
 export async function incrementReplyCount(postId: string): Promise<void> {

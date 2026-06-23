@@ -3,22 +3,17 @@ import type { Screen } from '../types';
 
 const NAV_ITEMS: { id: Screen; icon: string; label: string }[] = [
   { id: 'feed', icon: 'ti-home', label: 'feed' },
-  { id: 'explore', icon: 'ti-search', label: 'find' },
-  { id: 'chats', icon: 'ti-message-circle', label: 'chats' },
   { id: 'profile', icon: 'ti-user', label: 'me' },
 ];
 
 export function BottomNav() {
-  const { screen, goScreen, openSheet, user, incomingMeetRequests, chats } = useApp();
+  const { screen, goScreen, openSheet, user } = useApp();
 
   if (!user) return null;
 
-  const chatBadge =
-    incomingMeetRequests.length > 0 || chats.some((c) => c.unread);
-
   return (
     <div className="bnav" id="bnav">
-      {NAV_ITEMS.slice(0, 2).map((item) => (
+      {NAV_ITEMS.slice(0, 1).map((item) => (
         <button
           key={item.id}
           type="button"
@@ -33,7 +28,7 @@ export function BottomNav() {
       <button type="button" className="npost" onClick={openSheet}>
         <i className="ti ti-plus" />
       </button>
-      {NAV_ITEMS.slice(2).map((item) => (
+      {NAV_ITEMS.slice(1).map((item) => (
         <button
           key={item.id}
           type="button"
@@ -43,7 +38,6 @@ export function BottomNav() {
         >
           <i className={`ti ${item.icon}`} />
           {item.label}
-          {item.id === 'chats' && chatBadge && <span className="nav-badge" />}
         </button>
       ))}
     </div>

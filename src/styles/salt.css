@@ -37,6 +37,38 @@ body{background-color:var(--bg);background-image:linear-gradient(var(--grid) 1px
 @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
 .expire-txt{font-size:10px;color:rgba(255,255,255,0.75)}
 .compose{margin:12px 14px 10px;border:1px solid var(--teal);background:var(--card);padding:14px;flex-shrink:0}
+.feed-search{margin:10px 14px 8px;display:flex;align-items:center;gap:8px;border:1px solid var(--border2);background:var(--card);padding:10px 12px;flex-shrink:0}
+.feed-search i{color:var(--muted);font-size:16px}
+.feed-search-inp{flex:1;background:transparent;border:none;outline:none;font-family:var(--fm);font-size:13px;color:var(--cream)}
+.feed-search-inp::placeholder{color:var(--dim)}
+.slot-bar-wrap{margin:10px 0 6px}
+.slot-bar-lbl{display:flex;justify-content:space-between;font-family:var(--fh);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:5px}
+.slot-done{color:var(--teal)}
+.slot-bar{height:6px;background:var(--bg);border:1px solid var(--border2);overflow:hidden}
+.slot-fill{height:100%;background:var(--teal);transition:width .25s ease}
+.slot-names{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.slot-chip{font-size:9px;font-family:var(--fh);font-weight:700;color:var(--teal);border:1px solid var(--teal);padding:2px 6px;text-transform:uppercase}
+.host-done-btn{width:100%;margin:8px 0;padding:8px;background:var(--teal);color:#0E0E0E;border:none;font-family:var(--fh);font-size:11px;font-weight:700;text-transform:uppercase;cursor:pointer}
+.pcomments{margin-top:8px}
+.cbtn{background:transparent;border:1px solid var(--border2);color:var(--muted);font-family:var(--fh);font-size:10px;font-weight:700;text-transform:uppercase;padding:5px 10px;cursor:pointer}
+.cthread{margin-top:8px;border-top:1px solid var(--border2);padding-top:8px}
+.cempty{font-size:11px;color:var(--dim);font-family:var(--fm);padding:6px 0}
+.citem{display:flex;gap:8px;margin-bottom:10px}
+.cavi-sm{width:28px!important;height:28px!important;font-size:10px!important}
+.cbody{flex:1;min-width:0}
+.cname{font-family:var(--fh);font-size:11px;font-weight:700;text-transform:uppercase;display:flex;align-items:center;gap:6px}
+.cjoined{font-size:9px;color:var(--teal);border:1px solid var(--teal);padding:1px 5px}
+.ctext{font-size:12px;color:var(--cream);font-family:var(--fm);line-height:1.45;margin-top:2px}
+.cmeta{display:flex;align-items:center;gap:8px;margin-top:4px;font-size:10px;color:var(--dim);font-family:var(--fm)}
+.cact{background:transparent;border:none;font-family:var(--fh);font-size:10px;font-weight:700;text-transform:uppercase;cursor:pointer;padding:0}
+.cact.add{color:var(--teal)}
+.cact.rem{color:var(--red)}
+.ccompose{display:flex;gap:6px;margin-top:8px}
+.cinp{flex:1;background:var(--bg);border:1px solid var(--border2);padding:8px 10px;font-family:var(--fm);font-size:12px;color:var(--cream);outline:none}
+.csend{background:var(--teal);color:#0E0E0E;border:none;padding:8px 12px;font-family:var(--fh);font-size:11px;font-weight:700;cursor:pointer;text-transform:uppercase}
+.chost-note{font-size:10px;color:var(--muted);font-family:var(--fm);margin-top:8px;font-style:italic}
+.rate-btns{display:flex;flex-wrap:wrap;gap:4px;margin-left:auto;justify-content:flex-end}
+.pav{width:30px;height:30px;flex-shrink:0}
 .compose-top{display:flex;gap:10px;align-items:center;margin-bottom:10px}
 .cavi{width:34px;height:34px;background:var(--red);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:var(--fh);font-size:14px;font-weight:900;color:white}
 .cfake{flex:1;min-width:0;background:var(--bg);border:1px solid var(--border);padding:9px 12px;font-family:var(--fm);font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -70,7 +102,6 @@ body{background-color:var(--bg);background-image:linear-gradient(var(--grid) 1px
 .vscore.neg{color:var(--red)}
 .pmain{flex:1;min-width:0;padding:12px 12px 0 4px}
 .ptop{display:flex;align-items:flex-start;gap:8px;margin-bottom:7px}
-.pav{width:30px;height:30px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:var(--fh);font-size:12px;font-weight:900;color:white}
 .pmeta{flex:1;min-width:0}
 .pname{font-family:var(--fh);font-size:14px;font-weight:700;color:var(--cream);text-transform:uppercase;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
 .ab{font-size:9px;font-weight:700;border:1px solid var(--teal);color:var(--teal);padding:1px 5px;font-family:var(--fh);letter-spacing:0.5px;white-space:nowrap}
