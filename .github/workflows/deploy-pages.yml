@@ -58,6 +58,7 @@ jobs:
 
       - name: Verify production bundle
         run: |
+          node scripts/verifyDistSecurity.mjs
           if grep -q 'src/main.tsx' dist/index.html; then
             echo "::error::dist/index.html still references src/main.tsx — build is not production-ready"
             exit 1

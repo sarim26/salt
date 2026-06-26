@@ -1,4 +1,4 @@
-import logoSrc from '../assets/LogoMain.png';
+import logoSrc from '../assets/Logo.png';
 
 type LogoProps = {
   variant?: 'login' | 'header';
